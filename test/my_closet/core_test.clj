@@ -16,3 +16,7 @@
 (fact "Generate recommendation"
       (recommendation pieces-of-clothing :summer) =not=> nil)
 
+(fact "Check if the combination is valid based on color, season and types"
+      (combination-valid? white-t-shirt black-pants) => true
+      (combination-valid? white-t-shirt green-t-shirt) => false)
+
