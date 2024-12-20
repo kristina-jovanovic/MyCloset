@@ -13,3 +13,6 @@
       (seasons-match? {:season :universal} {:season :summer}) => true
       (seasons-match? {:season :winter} {:season :universal}) => true)
 
+(fact "Generate recommendation"
+      (recommendation pieces-of-clothing :summer) =not=> nil)
+

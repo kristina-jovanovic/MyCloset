@@ -24,3 +24,15 @@
   (or (= (:season piece1) :universal)
       (= (:season piece2) :universal)
       (= (:season piece1) (:season piece2))))
+
+(def pieces-of-clothing
+  [{:name "White T-shirt" :type :top :color :white :season :summer}
+   {:name "Black Pants" :type :bottom :color :black :season :universal}])
+
+;generating a recommendation on what a user should wear
+(defn recommendation [pieces-of-clothing season]
+  (filter #(or (= (:season %) season)
+               (= (:season %) :universal))
+          pieces-of-clothing))
+
+;(recommendation pieces-of-clothing :summer)
