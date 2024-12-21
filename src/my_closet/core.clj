@@ -45,11 +45,6 @@
    blue-jeans
    beige-boots])
 
-;generating a recommendation on what a user should wear
-(defn recommendation [pieces-of-clothing season]
-  (filter #(or (= (:season %) season)
-               (= (:season %) :universal))
-          pieces-of-clothing))
 
 ;checking if the combination is valid based on color, season and type
 (defn combination-valid? [piece1 piece2]
@@ -80,3 +75,28 @@
                    (combination-valid? piece1 piece2))
                  (for [x pieces-of-clothing y pieces-of-clothing :when (not= x y)]
                    [x y])))))
+
+;generating all combinations with k elements from the list, using clojure.math.combinatorics
+(require '[clojure.math.combinatorics :as combo])
+(defn all-combinations [k list]
+  (combo/combinations list k))
+
+;using all-combinations but with different number of elements, number of elements is in a range
+(defn all-combinations-in-range [min-size max-size list]
+  (apply concat
+         (map #(all-combinations % list)
+              (range min-size (inc max-size)))))
+
+;filters pieces of clothing based on a season, takes all combinations with 2-4 elements from filtered list
+;and checks if every combined pair in that combination is combined properly
+;it returns every valid combination
+(defn recommendation [pieces-of-clothing season]
+  (let [filtered (filter #(or (= (:season %) season)
+                              (= (:season %) :universal))
+                         pieces-of-clothing)]
+    ;(println "Filtered pieces:" filtered)
+    (filter combination-of-more-pieces-valid?
+            (all-combinations-in-range 2 4 filtered))))
+
+(recommendation pieces-of-clothing :summer)
+
