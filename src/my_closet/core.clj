@@ -98,5 +98,21 @@
     (filter combination-of-more-pieces-valid?
             (all-combinations-in-range 2 4 filtered))))
 
-(recommendation pieces-of-clothing :summer)
+(def summer-combinations
+  (recommendation pieces-of-clothing :summer))
+
+;doseq = foreach
+(doseq [comb summer-combinations]
+  (println "\nRecommended summer combination:")
+  (doseq [piece comb]
+    (println (:name piece))))
+
+(def winter-combinations
+  (recommendation pieces-of-clothing :winter))
+
+;doseq = foreach
+(doseq [comb winter-combinations]
+  (println "\nRecommended winter combination:")
+  (doseq [piece comb]
+    (println (:name piece))))
 
