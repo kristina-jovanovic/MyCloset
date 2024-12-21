@@ -57,9 +57,26 @@
        (seasons-match? piece1 piece2)
        (not= (:type piece1) (:type piece2))))
 
+;defining combination rules, based on types
+(def allowed-combinations-of-types
+  #{#{:top :bottom :shoes}
+    #{:top :bottom :jacket :shoes}
+    #{:dress :shoes}
+    #{:dress :jacket :shoes}})
+
+(require '[clojure.set :as set])
+;this is equal to 'some' but instead of true/nil, it returns true/false
+(def has-any? (complement not-any?))
+
+;checking validity of combinations with more pieces of clothing at once
 (defn combination-of-more-pieces-valid? [pieces-of-clothing]
-  (every? (fn [[piece1 piece2]]
-            ;(println "Testing pair:" piece1 piece2)
-            (combination-valid? piece1 piece2))
-          (for [x pieces-of-clothing y pieces-of-clothing :when (not= x y)]
-            [x y])))
+  ;(println "Testing pieces:" pieces-of-clothes "\n")
+  (let [types-in-combination (set (map :type pieces-of-clothing))]
+    ;is set of these types contained in allowed combinations of types
+    ;and does every pair of pieces match
+    (and (has-any? #(set/subset? % types-in-combination) allowed-combinations-of-types)
+         (every? (fn [[piece1 piece2]]
+                   ;(println "Testing pair:" piece1 piece2)
+                   (combination-valid? piece1 piece2))
+                 (for [x pieces-of-clothing y pieces-of-clothing :when (not= x y)]
+                   [x y])))))
