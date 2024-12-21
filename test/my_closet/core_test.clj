@@ -20,3 +20,9 @@
       (combination-valid? white-t-shirt black-pants) => true
       (combination-valid? white-t-shirt green-t-shirt) => false)
 
+(fact "Check if the combination of more pieces is valid"
+      (combination-of-more-pieces-valid? [black-sweater blue-jeans beige-boots]) => true
+      (combination-of-more-pieces-valid? [white-t-shirt black-pants white-sneakers]) => true
+      (combination-of-more-pieces-valid? [white-t-shirt black-pants beige-boots black-winter-jacket]) => false)
+
+

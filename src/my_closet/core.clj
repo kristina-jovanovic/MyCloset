@@ -56,3 +56,10 @@
   (and (colors-match? (:color piece1) (:color piece2))
        (seasons-match? piece1 piece2)
        (not= (:type piece1) (:type piece2))))
+
+(defn combination-of-more-pieces-valid? [pieces-of-clothing]
+  (every? (fn [[piece1 piece2]]
+            ;(println "Testing pair:" piece1 piece2)
+            (combination-valid? piece1 piece2))
+          (for [x pieces-of-clothing y pieces-of-clothing :when (not= x y)]
+            [x y])))
