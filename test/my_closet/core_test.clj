@@ -27,7 +27,14 @@
       (combination-of-more-pieces-valid? [white-t-shirt black-pants blue-jeans]) => false)
 
 (fact "Store feedback from user"
-      (reset! user-preferences {})
+      (reset! user-ratings {})
       (save-user-feedback [:white-t-shirt :black-pants :white-sneakers] :like)
-      @user-preferences => {[:white-t-shirt :black-pants :white-sneakers] :like})
+      @user-ratings => {[:white-t-shirt :black-pants :white-sneakers] :like})
+
+(fact "Generate a co-occurrence matrix based on user ratings"
+      (cooccurrence {:user1 {[:a] :like, [:b] :like}
+                     :user2 {[:a] :like, [:c] :like}})
+      => {[:a] {[:b] 1, [:c] 1}
+          [:b] {[:a] 1}
+          [:c] {[:a] 1}})
 

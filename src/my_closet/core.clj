@@ -116,8 +116,28 @@
 ;  (doseq [piece comb]
 ;    (println (:name piece))))
 
-;idea is to save user's preferences by saving combinations and their opinion - like or dislike
-(def user-preferences (atom {}))
+;idea is to save user's ratings by saving combinations and their opinion - like or dislike
+(def user-ratings (atom {}))
 
 (defn save-user-feedback [combination rating]
-  (swap! user-preferences assoc combination rating))
+  (swap! user-ratings assoc combination rating))
+
+;coocurrence matrix shows how often particular combinations appear together
+;in user-ratings, key is combination that user likes, and values are combinations that
+;often appear with it, along with number that shows how many times they are liked together
+;using this, system will recommend combinations that are often liked by users that also like
+;combination that our user likes, we could say they have similar taste in fashion
+(defn cooccurrence [user-ratings]
+  (reduce (fn [cooc [user ratings]]
+            (reduce (fn [c [combo1 rating1]]
+                      (reduce (fn [c [combo2 rating2]]
+                                (if (and (not= combo1 combo2)
+                                         (= rating1 rating2))
+                                  (update-in c [combo1 combo2] (fnil inc 0))
+                                  c))
+                              c
+                              ratings))
+                    cooc
+                    ratings))
+          {}
+          user-ratings))
