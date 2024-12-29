@@ -119,8 +119,12 @@
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
 (def user-ratings (atom {}))
 
-(defn save-user-feedback [combination rating]
-  (swap! user-ratings assoc combination rating))
+;(defn save-user-feedback [combination rating]
+;  (swap! user-ratings assoc combination rating))
+(defn save-user-feedback [user-id combination rating]
+  (swap! user-ratings update user-id
+         (fn [user-data]
+           (assoc (or user-data {}) combination rating))))
 
 ;coocurrence matrix shows how often particular combinations appear together
 ;in user-ratings, key is combination that user likes, and values are combinations that
@@ -141,3 +145,21 @@
                     ratings))
           {}
           user-ratings))
+
+;extracts recommendations that are relevant for our user based on co-ocurence matrix
+(defn recommend [user-id user-ratings coocurrence-matrix]
+  (let [user-rated (get user-ratings user-id)
+        liked-combos (set (keys (filter #(= :like (val %)) user-rated)))
+        recommendations (reduce (fn [rec combo]
+                                  (merge-with + rec (get coocurrence-matrix combo {})))
+                                {}
+                                liked-combos)]
+    ;(println "Liked combinations:" liked-combos)
+    ;(println "Raw recommendations:" recommendations)
+    (->> recommendations
+         (remove #(contains? user-rated (key %)))
+         (sort-by val >)
+         (map key)
+         (take 5)
+         )
+    ))

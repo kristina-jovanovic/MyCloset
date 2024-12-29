@@ -28,8 +28,8 @@
 
 (fact "Store feedback from user"
       (reset! user-ratings {})
-      (save-user-feedback [:white-t-shirt :black-pants :white-sneakers] :like)
-      @user-ratings => {[:white-t-shirt :black-pants :white-sneakers] :like})
+      (save-user-feedback :user1 [:white-t-shirt :black-pants :white-sneakers] :like)
+      @user-ratings => { :user1 {[:white-t-shirt :black-pants :white-sneakers] :like} })
 
 (fact "Generate a co-occurrence matrix based on user ratings"
       (cooccurrence {:user1 {[:a] :like, [:b] :like}
@@ -37,4 +37,10 @@
       => {[:a] {[:b] 1, [:c] 1}
           [:b] {[:a] 1}
           [:c] {[:a] 1}})
+
+(fact "Recommend combinations that are not rated by the user but co-occurring with liked ones"
+      (recommend :user1 {:user1 {[:a] :like}
+                         :user2 {[:a] :like, [:b] :like}}
+                 {[:a] {[:b] 1}})
+      => '([:b]))
 
