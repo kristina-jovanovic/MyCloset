@@ -26,4 +26,8 @@
       (combination-of-more-pieces-valid? [white-t-shirt black-pants beige-boots black-winter-jacket]) => false
       (combination-of-more-pieces-valid? [white-t-shirt black-pants blue-jeans]) => false)
 
+(fact "Store feedback from user"
+      (reset! user-preferences {})
+      (save-user-feedback [:white-t-shirt :black-pants :white-sneakers] :like)
+      @user-preferences => {[:white-t-shirt :black-pants :white-sneakers] :like})
 
