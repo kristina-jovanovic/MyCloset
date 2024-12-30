@@ -38,9 +38,31 @@
           [:b] {[:a] 1}
           [:c] {[:a] 1}})
 
-(fact "Recommend combinations that are not rated by the user but co-occurring with liked ones"
-      (recommend :user1 {:user1 {[:a] :like}
-                         :user2 {[:a] :like, [:b] :like}}
-                 {[:a] {[:b] 1}})
-      => '([:b]))
+(comment
+  (fact "Recommend combinations that are not rated by the user but co-occurring with liked ones"
+        (recommend :user1 {:user1 {[:a] :like}
+                           :user2 {[:a] :like, [:b] :like}}
+                   {[:a] {[:b] 1}})
+        => '([:b]))
+  )
+
+(fact "Recommend a combination, ask for feedback, and update ratings"
+      (let [user-ratings (atom {:user1 {[:a] :like}})
+            cooc {[:a] {[:b] 1}}]
+
+            (recommend :user1 user-ratings cooc
+                       :input-fn read-line
+                       :output-fn println)
+
+            ;; check if the user-ratings is updated properly (we assume he will enter 'like')
+            @user-ratings => {:user1 {[:a] :like, [:b] :like}}
+
+            (let [printed-output (with-out-str (recommend :user1 user-ratings cooc
+                                                          :input-fn read-line
+                                                          :output-fn println))]
+                  printed-output => (or (contains "Initial recommendations:{[:b] 1}")
+                                        (contains "Do you like this combination?")
+                                        (contains "Ok, I will recommend another combination...")
+                                        (contains "Thanks! This combination will be added to favorites."))
+                  )))
 
