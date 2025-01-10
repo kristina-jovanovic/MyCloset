@@ -1,7 +1,8 @@
 (ns my-closet.core-test
   (:require [clojure.test :refer :all]
             [my-closet.core :refer :all]
-            [midje.sweet :refer :all]))
+            [midje.sweet :refer :all]
+            [clojure.string :as str]))
 
 (fact "Check if the colors match"
       (colors-match? :white :black) => true
@@ -29,40 +30,62 @@
 (fact "Store feedback from user"
       (reset! user-ratings {})
       (save-user-feedback :user1 [:white-t-shirt :black-pants :white-sneakers] :like)
-      @user-ratings => { :user1 {[:white-t-shirt :black-pants :white-sneakers] :like} })
+      @user-ratings => {:user1 {[:white-t-shirt :black-pants :white-sneakers] :like}})
 
 (fact "Generate a co-occurrence matrix based on user ratings"
-      (cooccurrence {:user1 {[:a] :like, [:b] :like}
-                     :user2 {[:a] :like, [:c] :like}})
+      (co-occurrence {:user1 {[:a] :like, [:b] :like}
+                    :user2 {[:a] :like, [:c] :like}})
       => {[:a] {[:b] 1, [:c] 1}
           [:b] {[:a] 1}
           [:c] {[:a] 1}})
 
-(comment
-  (fact "Recommend combinations that are not rated by the user but co-occurring with liked ones"
-        (recommend :user1 {:user1 {[:a] :like}
-                           :user2 {[:a] :like, [:b] :like}}
-                   {[:a] {[:b] 1}})
-        => '([:b]))
-  )
+(fact "Recommend combinations that are not rated by the user but co-occurring with liked ones"
+      (let [user-ratings (atom {:user1 {[:a] :like}
+                                :user2 {[:a] :like, [:b] :like}})
+            cooc {[:a] {[:b] 1}}
+            output (with-out-str (recommend :user1 user-ratings cooc pieces-of-clothing :summer
+                                            :input-fn (fn [] "like")
+                                            :output-fn println))]
+        (str/includes? output "[:b]") => true))
 
 (fact "Recommend a combination, ask for feedback, and update ratings"
       (let [user-ratings (atom {:user1 {[:a] :like}})
             cooc {[:a] {[:b] 1}}]
 
-            (recommend :user1 user-ratings cooc
-                       :input-fn read-line
-                       :output-fn println)
+        (recommend :user1 user-ratings cooc pieces-of-clothing :summer
+                   :input-fn (fn [] "like")
+                   :output-fn println)
 
-            ;; check if the user-ratings is updated properly (we assume he will enter 'like')
-            @user-ratings => {:user1 {[:a] :like, [:b] :like}}
+        ;check if the user-ratings is updated properly (we simulate user entering 'like')
+        @user-ratings => {:user1 {[:a] :like, [:b] :like}}
 
-            (let [printed-output (with-out-str (recommend :user1 user-ratings cooc
-                                                          :input-fn read-line
-                                                          :output-fn println))]
-                  printed-output => (or (contains "Initial recommendations:{[:b] 1}")
-                                        (contains "Do you like this combination?")
-                                        (contains "Ok, I will recommend another combination...")
-                                        (contains "Thanks! This combination will be added to favorites."))
-                  )))
+        (let [printed-output (with-out-str (recommend :user1 user-ratings cooc pieces-of-clothing :summer
+                                                      :input-fn (fn [] "like")
+                                                      :output-fn println))]
+          (or (str/includes? printed-output "Initial recommendations: ")
+              (str/includes? printed-output "Recommendations based on your preferences: {[:b] 1}")
+              (str/includes? printed-output "Do you like this combination?")
+              (str/includes? printed-output "Ok, I will recommend another combination...")
+              (str/includes? printed-output "Thanks! This combination will be added to favorites.")) => true
+          )))
+
+(fact "Recommend combinations for a new user, update ratings, and verify output"
+      (let [user-ratings (atom {})
+            cooc {[:a] {[:b] 1}}]
+
+        ;simulate the recommendation process and capture output
+        (let [printed-output (with-out-str
+                               (recommend :user1 user-ratings cooc pieces-of-clothing :summer
+                                          :input-fn (fn [] "like")
+                                          :output-fn println))]
+
+          ;check that the user-ratings is updated for :user1
+          (get @user-ratings :user1) =not=> nil
+          (some #(= :like (val %)) (get @user-ratings :user1)) => true
+
+          ;verify that specific strings are present in the output
+          (str/includes? printed-output "Initial recommendations:") => true
+          (str/includes? printed-output "Do you like this combination?") => true
+          (str/includes? printed-output "Thanks! This combination will be added to favorites.") => true)))
+
 

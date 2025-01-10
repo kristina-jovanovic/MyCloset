@@ -1,5 +1,7 @@
 (ns my-closet.core
-  (:gen-class))
+  (:gen-class)
+  (:require [clojure.set :as set]
+            [clojure.math.combinatorics :as combo]))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -45,12 +47,13 @@
    blue-jeans
    beige-boots])
 
-
 ;checking if the combination is valid based on color, season and type
-(defn combination-valid? [piece1 piece2]
-  (and (colors-match? (:color piece1) (:color piece2))
-       (seasons-match? piece1 piece2)
-       (not= (:type piece1) (:type piece2))))
+(def combination-valid?
+  (memoize
+    (fn [piece1 piece2]
+      (and (colors-match? (:color piece1) (:color piece2))
+           (seasons-match? piece1 piece2)
+           (not= (:type piece1) (:type piece2))))))
 
 ;defining combination rules, based on types
 (def allowed-combinations-of-types
@@ -59,25 +62,21 @@
     #{:dress :shoes}
     #{:dress :jacket :shoes}})
 
-(require '[clojure.set :as set])
-;this is equal to 'some' but instead of true/nil, it returns true/false
-(def has-any? (complement not-any?))
+(defn types-allowed? [types-in-combination]
+  (some #(set/subset? % types-in-combination) allowed-combinations-of-types))
+
+(defn all-pairs-valid? [pieces-of-clothing]
+  (every? (fn [[piece1 piece2]] (combination-valid? piece1 piece2))
+          (for [x pieces-of-clothing y pieces-of-clothing :when (not= x y)] [x y])))
 
 ;checking validity of combinations with more pieces of clothing at once
 (defn combination-of-more-pieces-valid? [pieces-of-clothing]
-  ;(println "Testing pieces:" pieces-of-clothes "\n")
   (let [types-in-combination (set (map :type pieces-of-clothing))]
-    ;is set of these types contained in allowed combinations of types
-    ;and does every pair of pieces match
-    (and (has-any? #(set/subset? % types-in-combination) allowed-combinations-of-types)
-         (every? (fn [[piece1 piece2]]
-                   ;(println "Testing pair:" piece1 piece2)
-                   (combination-valid? piece1 piece2))
-                 (for [x pieces-of-clothing y pieces-of-clothing :when (not= x y)]
-                   [x y])))))
+    (boolean
+      (and (types-allowed? types-in-combination)
+           (all-pairs-valid? pieces-of-clothing)))))
 
 ;generating all combinations with k elements from the list, using clojure.math.combinatorics
-(require '[clojure.math.combinatorics :as combo])
 (defn all-combinations [k list]
   (combo/combinations list k))
 
@@ -126,12 +125,12 @@
          (fn [user-data]
            (assoc (or user-data {}) combination rating))))
 
-;coocurrence matrix shows how often particular combinations appear together
+;co-occurrence matrix shows how often particular combinations appear together
 ;in user-ratings, key is combination that user likes, and values are combinations that
 ;often appear with it, along with number that shows how many times they are liked together
 ;using this, system will recommend combinations that are often liked by users that also like
 ;combination that our user likes, we could say they have similar taste in fashion
-(defn cooccurrence [user-ratings]
+(defn co-occurrence [user-ratings]
   (reduce (fn [cooc [user ratings]]
             (reduce (fn [c [combo1 rating1]]
                       (reduce (fn [c [combo2 rating2]]
@@ -148,43 +147,72 @@
 
 ;extracts recommendations that are relevant for our user based on co-ocurence matrix
 ;if user dislikes combination, another one is being presented, and so on
-;if he likes it, that is it, and the results are being updated in user-ratings
+;if he likes it, that is it, and the results are being updated in user-ratings.
+;if user is new and does not have any liked combinations, then a combination will be generated
+;through recommendation function
 (defn recommend
-  [user-id user-ratings cooccurrence-matrix & {:keys [input-fn output-fn]
-                                               :or   {input-fn  read-line
-                                                      output-fn println}}]
-  (let [user-rated (get @user-ratings user-id)
-        liked-combos (set (keys (filter #(= :like (val %)) user-rated)))
-        recommendations (reduce (fn [rec combo]
-                                  (merge-with + rec (get cooccurrence-matrix combo {})))
-                                {}
-                                liked-combos)]
-    (println (str "Initial recommendations:" recommendations))
+  [user-id user-ratings co-occurrence-matrix pieces-of-clothing season & {:keys [input-fn output-fn]
+                                                                          :or   {input-fn  read-line
+                                                                                 output-fn println}}]
+  (let [user-rated (get @user-ratings user-id)]
+    (if (empty? user-rated)
+      (let [initial-recommendations (recommendation pieces-of-clothing season)]
+        (output-fn (str "Initial recommendations: " initial-recommendations))
+        (loop [remaining-recommendations initial-recommendations
+               updated-ratings {}]
+          (if-let [current (first remaining-recommendations)]
+            (do
+              (output-fn (str "Do you like this combination? " current " (like/dislike)"))
+              (let [feedback (input-fn)]
+                (cond
+                  (= feedback "like")
+                  (do
+                    (output-fn "Thanks! This combination will be added to favorites.")
+                    (swap! user-ratings assoc user-id (assoc updated-ratings current :like))
+                    nil)
 
-    (loop [remaining-recommendations (->> recommendations
-                                          (remove #(contains? user-rated (key %)))
-                                          (sort-by val >)
-                                          (map key))
-           updated-ratings user-rated]
-      (if-let [current (first remaining-recommendations)]
-        (do
-          (output-fn (str "Do you like this combination? " current " (like/dislike)"))
-          (let [feedback (input-fn)]
-            (cond
-              (= feedback "like")
-              (do
-                (output-fn "Thanks! This combination will be added to favorites.")
-                (swap! user-ratings assoc user-id (assoc updated-ratings current :like))
-                nil)
+                  (= feedback "dislike")
+                  (do
+                    (output-fn "Ok, I will recommend another combination...")
+                    (recur (rest remaining-recommendations)
+                           (assoc updated-ratings current :dislike)))
 
-              (= feedback "dislike")
-              (do
-                (output-fn "Ok, I will recommend another combination...")
-                (recur (rest remaining-recommendations)
-                       (assoc updated-ratings current :dislike)))
+                  :else
+                  (do
+                    (output-fn "Please enter 'like' or 'dislike'.")
+                    (recur remaining-recommendations updated-ratings)))))))
+        (output-fn "No remaining recommendations. Thanks for the feedback!")))
+    (let [liked-combos (set (keys (filter #(= :like (val %)) user-rated)))
+          recommendations (reduce (fn [rec combo]
+                                    (merge-with + rec (get co-occurrence-matrix combo {})))
+                                  {}
+                                  liked-combos)]
+      (output-fn (str "Recommendations based on your preferences: " recommendations))
 
-              :else
-              (do
-                (output-fn "Please enter 'like' or 'dislike'.")
-                (recur remaining-recommendations updated-ratings)))))))
-    (output-fn "No remaining recommendations. Thanks for the feedback!")))
+      (loop [remaining-recommendations (->> recommendations
+                                            (remove #(contains? user-rated (key %)))
+                                            (sort-by val >)
+                                            (map key))
+             updated-ratings user-rated]
+        (if-let [current (first remaining-recommendations)]
+          (do
+            (output-fn (str "Do you like this combination? " current " (like/dislike)"))
+            (let [feedback (input-fn)]
+              (cond
+                (= feedback "like")
+                (do
+                  (output-fn "Thanks! This combination will be added to favorites.")
+                  (swap! user-ratings assoc user-id (assoc updated-ratings current :like))
+                  nil)
+
+                (= feedback "dislike")
+                (do
+                  (output-fn "Ok, I will recommend another combination...")
+                  (recur (rest remaining-recommendations)
+                         (assoc updated-ratings current :dislike)))
+
+                :else
+                (do
+                  (output-fn "Please enter 'like' or 'dislike'.")
+                  (recur remaining-recommendations updated-ratings)))))))
+      (output-fn "No remaining recommendations. Thanks for the feedback!"))))
