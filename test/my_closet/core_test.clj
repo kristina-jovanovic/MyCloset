@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [my-closet.core :refer :all]
             [midje.sweet :refer :all]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [my-closet.db :refer :all]))
 
 (fact "Check if the colors match"
       (colors-match? :white :black) => true
@@ -34,7 +35,7 @@
 
 (fact "Generate a co-occurrence matrix based on user ratings"
       (co-occurrence {:user1 {[:a] :like, [:b] :like}
-                    :user2 {[:a] :like, [:c] :like}})
+                      :user2 {[:a] :like, [:c] :like}})
       => {[:a] {[:b] 1, [:c] 1}
           [:b] {[:a] 1}
           [:c] {[:a] 1}})
@@ -87,5 +88,9 @@
           (str/includes? printed-output "Initial recommendations:") => true
           (str/includes? printed-output "Do you like this combination?") => true
           (str/includes? printed-output "Thanks! This combination will be added to favorites.") => true)))
+
+(fact "Get all clothing items from database"
+      (get-clothing-items db-spec) =not=> nil)
+
 
 
