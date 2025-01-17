@@ -1,12 +1,8 @@
 (ns my-closet.core
   (:gen-class)
   (:require [clojure.set :as set]
-            [clojure.math.combinatorics :as combo]))
-
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+            [clojure.math.combinatorics :as combo]
+            [my-closet.db :refer :all]))
 
 ;defining color rules - every color has a set of colors that matches
 (def color-rules
@@ -27,25 +23,8 @@
       (= (:season piece2) :universal)
       (= (:season piece1) (:season piece2))))
 
-;defining pieces of clothing
-(def white-t-shirt {:name "White T-shirt" :type :top :color :white :season :summer})
-(def green-t-shirt {:name "Green T-shirt" :type :top :color :green :season :summer})
-(def black-sweater {:name "Black sweater" :type :top :color :black :season :winter})
-(def black-pants {:name "Black pants" :type :bottom :color :black :season :universal})
-(def blue-jeans {:name "Blue jeans" :type :bottom :color :blue :season :universal})
-(def white-sneakers {:name "White sneakers" :type :shoes :color :white :season :summer})
-(def beige-boots {:name "Beige boots" :type :shoes :color :beige :season :winter})
-(def black-winter-jacket {:name "Black winter jacket" :type :jacket :color :black :season :winter})
-
 (def pieces-of-clothing
-  [white-t-shirt
-   black-pants
-   white-sneakers
-   green-t-shirt
-   black-winter-jacket
-   black-sweater
-   blue-jeans
-   beige-boots])
+  (get-clothing-items db-spec))
 
 ;checking if the combination is valid based on color, season and type
 (def combination-valid?
@@ -99,6 +78,7 @@
 
 ;(def summer-combinations
 ;  (recommendation pieces-of-clothing :summer))
+
 ;
 ;;doseq = foreach
 ;(doseq [comb summer-combinations]
@@ -169,14 +149,15 @@
                   (do
                     (output-fn "Thanks! This combination will be added to favorites.")
                     (swap! user-ratings assoc user-id (assoc updated-ratings current :like))
+                    (save-combination-and-feedback current user-id feedback)
                     nil)
 
                   (= feedback "dislike")
                   (do
                     (output-fn "Ok, I will recommend another combination...")
+                    (save-combination-and-feedback current user-id feedback)
                     (recur (rest remaining-recommendations)
                            (assoc updated-ratings current :dislike)))
-
                   :else
                   (do
                     (output-fn "Please enter 'like' or 'dislike'.")
@@ -216,3 +197,10 @@
                   (output-fn "Please enter 'like' or 'dislike'.")
                   (recur remaining-recommendations updated-ratings)))))))
       (output-fn "No remaining recommendations. Thanks for the feedback!"))))
+
+(defn -main
+  "I don't do a whole lot ... yet."
+  [& args]
+  ;(recommend 1 user-ratings (co-occurrence user-ratings) pieces-of-clothing :summer)
+  (println "Hello, World!")
+  )

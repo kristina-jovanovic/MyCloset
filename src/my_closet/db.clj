@@ -1,6 +1,8 @@
 (ns my-closet.db
   (:gen-class)
-  (:require [next.jdbc :as jdbc]))
+  (:require [next.jdbc :as jdbc]
+            [clojure.set :as set]
+            [clojure.string :as str]))
 
 (def db-spec
   {:dbtype   "mysql"
@@ -10,7 +12,37 @@
    :user     "root"
    :password ""})
 
+(defn format-clothing-items [data]
+  (map (fn [item]
+         (let [renamed-item (set/rename-keys item {:clothing_items/clothing_item_id :id
+                                                   :clothing_items/type             :type
+                                                   :clothing_items/color            :color
+                                                   :clothing_items/season           :season
+                                                   :clothing_items/name             :name
+                                                   :clothing_items/photo            :photo})]
+           (-> renamed-item
+               (update :type keyword)
+               (update :color keyword)
+               (update :season keyword))))
+       data))
+
 (defn get-clothing-items [db-spec]
-  (jdbc/execute! db-spec
-                 ["SELECT * FROM `clothing_items`"]))
+  (format-clothing-items (jdbc/execute! db-spec
+                                        ["SELECT * FROM `clothing_items`"])))
+
+(defn save-combination-and-feedback [combination user-id rating]
+  (jdbc/with-transaction [tx db-spec]
+                         (let [description (str/join ", " (map :name combination))
+                               _ (jdbc/execute! tx
+                                                ["INSERT INTO combinations (description) VALUES (?)"
+                                                 description])
+                               inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
+                                               :last_id)]
+                           (doseq [piece combination]
+                             (jdbc/execute! tx
+                                            ["INSERT INTO combination_items (clothing_item_id, combination_id) VALUES (?, ?)"
+                                             (:id piece) inserted-id]))
+                           (jdbc/execute! tx
+                                          ["INSERT INTO user_feedback (user_id, combination_id, rating) VALUES (?, ?, ?)"
+                                           user-id inserted-id rating]))))
 

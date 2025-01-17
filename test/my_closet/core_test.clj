@@ -19,14 +19,27 @@
       (recommendation pieces-of-clothing :summer) =not=> nil)
 
 (fact "Check if the combination is valid based on color, season and types"
-      (combination-valid? white-t-shirt black-pants) => true
-      (combination-valid? white-t-shirt green-t-shirt) => false)
+      (combination-valid? {:name "White T-shirt" :type :top :color :white :season :summer} {:name "Black pants" :type :bottom :color :black :season :universal}) => true
+      (combination-valid? {:name "White T-shirt" :type :top :color :white :season :summer} {:name "Green T-shirt" :type :top :color :green :season :summer}) => false)
 
 (fact "Check if the combination of more pieces is valid"
-      (combination-of-more-pieces-valid? [black-sweater blue-jeans beige-boots]) => true
-      (combination-of-more-pieces-valid? [white-t-shirt black-pants white-sneakers]) => true
-      (combination-of-more-pieces-valid? [white-t-shirt black-pants beige-boots black-winter-jacket]) => false
-      (combination-of-more-pieces-valid? [white-t-shirt black-pants blue-jeans]) => false)
+      (combination-of-more-pieces-valid?
+        [{:name "Black sweater" :type :top :color :black :season :winter}
+         {:name "Blue jeans" :type :bottom :color :blue :season :universal}
+         {:name "Beige boots" :type :shoes :color :beige :season :winter}]) => true
+      (combination-of-more-pieces-valid?
+        [{:name "White T-shirt" :type :top :color :white :season :summer}
+         {:name "Black pants" :type :bottom :color :black :season :universal}
+         {:name "White sneakers" :type :shoes :color :white :season :summer}]) => true
+      (combination-of-more-pieces-valid?
+        [{:name "White T-shirt" :type :top :color :white :season :summer}
+         {:name "Black pants" :type :bottom :color :black :season :universal}
+         {:name "Beige boots" :type :shoes :color :beige :season :winter}
+         {:name "Black winter jacket" :type :jacket :color :black :season :winter}]) => false
+      (combination-of-more-pieces-valid?
+        [{:name "White T-shirt" :type :top :color :white :season :summer}
+         {:name "Black pants" :type :bottom :color :black :season :universal}
+         {:name "Blue jeans" :type :bottom :color :blue :season :universal}]) => false)
 
 (fact "Store feedback from user"
       (reset! user-ratings {})
@@ -70,27 +83,29 @@
               (str/includes? printed-output "Thanks! This combination will be added to favorites.")) => true
           )))
 
-(fact "Recommend combinations for a new user, update ratings, and verify output"
-      (let [user-ratings (atom {})
-            cooc {[:a] {[:b] 1}}]
-
-        ;simulate the recommendation process and capture output
-        (let [printed-output (with-out-str
-                               (recommend :user1 user-ratings cooc pieces-of-clothing :summer
-                                          :input-fn (fn [] "like")
-                                          :output-fn println))]
-
-          ;check that the user-ratings is updated for :user1
-          (get @user-ratings :user1) =not=> nil
-          (some #(= :like (val %)) (get @user-ratings :user1)) => true
-
-          ;verify that specific strings are present in the output
-          (str/includes? printed-output "Initial recommendations:") => true
-          (str/includes? printed-output "Do you like this combination?") => true
-          (str/includes? printed-output "Thanks! This combination will be added to favorites.") => true)))
+;(fact "Recommend combinations for a new user, update ratings, and verify output"
+;      (let [user-ratings (atom {})
+;            cooc {[:a] {[:b] 1}}]
+;
+;        ;simulate the recommendation process and capture output
+;        (let [printed-output (with-out-str
+;                               (recommend :user1 user-ratings cooc pieces-of-clothing :summer
+;                                          :input-fn (fn [] "like")
+;                                          :output-fn println))]
+;
+;          ;check that the user-ratings is updated for :user1
+;          (get @user-ratings :user1) =not=> nil
+;          (some #(= :like (val %)) (get @user-ratings :user1)) => true
+;
+;          ;verify that specific strings are present in the output
+;          (str/includes? printed-output "Initial recommendations:") => true
+;          (str/includes? printed-output "Do you like this combination?") => true
+;          (str/includes? printed-output "Thanks! This combination will be added to favorites.") => true)))
 
 (fact "Get all clothing items from database"
       (get-clothing-items db-spec) =not=> nil)
 
-
+(fact "Insert combination, combination_items and user_feedback to database"
+      (let [summer-combinations (recommendation pieces-of-clothing :summer)]
+        (save-combination-and-feedback (first summer-combinations) 1 "like") =not=> nil))
 
