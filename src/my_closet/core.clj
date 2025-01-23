@@ -79,7 +79,6 @@
 ;(def summer-combinations
 ;  (recommendation pieces-of-clothing :summer))
 
-;
 ;;doseq = foreach
 ;(doseq [comb summer-combinations]
 ;  (println "\nRecommended summer combination:")
@@ -96,14 +95,7 @@
 ;    (println (:name piece))))
 
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
-(def user-ratings (atom {}))
-
-;(defn save-user-feedback [combination rating]
-;  (swap! user-ratings assoc combination rating))
-(defn save-user-feedback [user-id combination rating]
-  (swap! user-ratings update user-id
-         (fn [user-data]
-           (assoc (or user-data {}) combination rating))))
+(def user-ratings (get-user-feedback db-spec))
 
 ;co-occurrence matrix shows how often particular combinations appear together
 ;in user-ratings, key is combination that user likes, and values are combinations that
@@ -134,7 +126,7 @@
   [user-id user-ratings co-occurrence-matrix pieces-of-clothing season & {:keys [input-fn output-fn]
                                                                           :or   {input-fn  read-line
                                                                                  output-fn println}}]
-  (let [user-rated (get @user-ratings user-id)]
+  (let [user-rated (get user-ratings user-id)]
     (if (empty? user-rated)
       (let [initial-recommendations (recommendation pieces-of-clothing season)]
         (output-fn (str "Initial recommendations: " initial-recommendations))
@@ -148,55 +140,64 @@
                   (= feedback "like")
                   (do
                     (output-fn "Thanks! This combination will be added to favorites.")
-                    (swap! user-ratings assoc user-id (assoc updated-ratings current :like))
-                    (save-combination-and-feedback current user-id feedback)
+                    (insert-combination-and-feedback current user-id feedback)
                     nil)
 
                   (= feedback "dislike")
                   (do
                     (output-fn "Ok, I will recommend another combination...")
-                    (save-combination-and-feedback current user-id feedback)
+                    (insert-combination-and-feedback current user-id feedback)
                     (recur (rest remaining-recommendations)
                            (assoc updated-ratings current :dislike)))
                   :else
                   (do
                     (output-fn "Please enter 'like' or 'dislike'.")
                     (recur remaining-recommendations updated-ratings)))))))
-        (output-fn "No remaining recommendations. Thanks for the feedback!")))
-    (let [liked-combos (set (keys (filter #(= :like (val %)) user-rated)))
-          recommendations (reduce (fn [rec combo]
-                                    (merge-with + rec (get co-occurrence-matrix combo {})))
-                                  {}
-                                  liked-combos)]
-      (output-fn (str "Recommendations based on your preferences: " recommendations))
+        (output-fn "No remaining recommendations. Thanks for the feedback!"))
+      (let [liked-combos (set (keys (filter #(= :like (val %)) user-rated)))
+            recommendations (reduce (fn [rec combo]
+                                      (merge-with + rec (get co-occurrence-matrix combo {})))
+                                    {}
+                                    liked-combos)]
+        (output-fn (str "Recommendations based on your preferences: " recommendations))
 
-      (loop [remaining-recommendations (->> recommendations
-                                            (remove #(contains? user-rated (key %)))
-                                            (sort-by val >)
-                                            (map key))
-             updated-ratings user-rated]
-        (if-let [current (first remaining-recommendations)]
-          (do
-            (output-fn (str "Do you like this combination? " current " (like/dislike)"))
-            (let [feedback (input-fn)]
-              (cond
-                (= feedback "like")
-                (do
-                  (output-fn "Thanks! This combination will be added to favorites.")
-                  (swap! user-ratings assoc user-id (assoc updated-ratings current :like))
-                  nil)
+        (loop [remaining-recommendations (->> recommendations
+                                              (remove #(contains? user-rated (key %)))
+                                              (sort-by val >)
+                                              (map key))
+               updated-ratings user-rated]
+          (if-let [current (first remaining-recommendations)]
+            (do
+              (output-fn (str "Do you like this combination? " current " (like/dislike)"))
+              (let [feedback (input-fn)]
+                (if (= feedback "like")
+                  (do
+                    (output-fn "Thanks! This combination will be added to favorites.")
+                    ; add feedback for this combination
+                    (insert-feedback user-id (get :combination-id current) feedback))
+                  (let [next-ratings (if (= feedback "dislike")
+                                       ; update the map for "dislike"
+                                       (assoc updated-ratings current :dislike)
+                                       ; leave ratings unchanged for invalid input
+                                       updated-ratings)]
+                    (cond
+                      (= feedback "like")
+                      (do
+                        (output-fn "Thanks! This combination will be added to favorites.")
+                        (insert-feedback user-id (get :combination-id current) feedback)
+                        (recur (rest remaining-recommendations) next-ratings))
 
-                (= feedback "dislike")
-                (do
-                  (output-fn "Ok, I will recommend another combination...")
-                  (recur (rest remaining-recommendations)
-                         (assoc updated-ratings current :dislike)))
+                      (= feedback "dislike")
+                      (do
+                        (output-fn "Ok, I will recommend another combination...")
+                        (insert-feedback user-id (get :combination-id current) feedback)
+                        (recur (rest remaining-recommendations) next-ratings))
 
-                :else
-                (do
-                  (output-fn "Please enter 'like' or 'dislike'.")
-                  (recur remaining-recommendations updated-ratings)))))))
-      (output-fn "No remaining recommendations. Thanks for the feedback!"))))
+                      :else
+                      (do
+                        (output-fn "Please enter 'like' or 'dislike'.")
+                        (recur remaining-recommendations updated-ratings)))))))
+            (output-fn "No remaining recommendations. Thanks for the feedback!")))))))
 
 (defn -main
   "I don't do a whole lot ... yet."

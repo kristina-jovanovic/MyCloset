@@ -30,7 +30,7 @@
   (format-clothing-items (jdbc/execute! db-spec
                                         ["SELECT * FROM `clothing_items`"])))
 
-(defn save-combination-and-feedback [combination user-id rating]
+(defn insert-combination-and-feedback [combination user-id rating]
   (jdbc/with-transaction [tx db-spec]
                          (let [description (str/join ", " (map :name combination))
                                _ (jdbc/execute! tx
@@ -45,4 +45,23 @@
                            (jdbc/execute! tx
                                           ["INSERT INTO user_feedback (user_id, combination_id, rating) VALUES (?, ?, ?)"
                                            user-id inserted-id rating]))))
+
+(defn format-user-feedback [data]
+  (map (fn [item]
+         (let [renamed-item (set/rename-keys item {:user_feedback/user_id        :user-id
+                                                   :user_feedback/combination_id :combination-id
+                                                   :user_feedback/rating         :rating})]
+           (-> renamed-item
+               (update :rating keyword))))
+       data))
+
+(defn get-user-feedback [db-spec]
+  (format-user-feedback (jdbc/execute! db-spec
+                                        ["SELECT * FROM `user_feedback`"])))
+
+(defn insert-feedback [user-id combination-id rating]
+  (jdbc/execute! db-spec
+                 ["INSERT INTO user_feedback (user_id, combination_id, rating) VALUES (?, ?, ?)"
+                  user-id combination-id rating]))
+
 
