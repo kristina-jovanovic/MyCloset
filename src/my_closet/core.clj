@@ -103,19 +103,21 @@
 ;using this, system will recommend combinations that are often liked by users that also like
 ;combination that our user likes, we could say they have similar taste in fashion
 (defn co-occurrence [user-ratings]
-  (reduce (fn [cooc [user ratings]]
-            (reduce (fn [c [combo1 rating1]]
-                      (reduce (fn [c [combo2 rating2]]
-                                (if (and (not= combo1 combo2)
-                                         (= rating1 rating2))
-                                  (update-in c [combo1 combo2] (fnil inc 0))
-                                  c))
-                              c
-                              ratings))
-                    cooc
-                    ratings))
-          {}
-          user-ratings))
+  (let [grouped-ratings (group-by :user-id user-ratings)]
+    (into {}
+          (reduce (fn [cooc [user ratings]]
+                    (reduce (fn [c rating1]
+                              (reduce (fn [c rating2]
+                                        (if (and (not= (:combination-id rating1) (:combination-id rating2))
+                                                 (= (:rating rating1) (:rating rating2)))
+                                          (update-in c [(:combination-id rating1) (:combination-id rating2)] (fnil inc 0))
+                                          c))
+                                      c
+                                      (seq ratings)))
+                            cooc
+                            (seq ratings)))
+                  {}
+                  grouped-ratings))))
 
 ;extracts recommendations that are relevant for our user based on co-ocurence matrix
 ;if user dislikes combination, another one is being presented, and so on
@@ -198,6 +200,7 @@
                         (output-fn "Please enter 'like' or 'dislike'.")
                         (recur remaining-recommendations updated-ratings)))))))
             (output-fn "No remaining recommendations. Thanks for the feedback!")))))))
+
 
 (defn -main
   "I don't do a whole lot ... yet."

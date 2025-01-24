@@ -64,4 +64,5 @@
                  ["INSERT INTO user_feedback (user_id, combination_id, rating) VALUES (?, ?, ?)"
                   user-id combination-id rating]))
 
+(get-user-feedback db-spec)
 
