@@ -76,9 +76,11 @@
     (filter combination-of-more-pieces-valid?
             (all-combinations-in-range 2 4 filtered))))
 
+;(recommendation pieces-of-clothing :summer)
+
 ;(def summer-combinations
 ;  (recommendation pieces-of-clothing :summer))
-
+;
 ;;doseq = foreach
 ;(doseq [comb summer-combinations]
 ;  (println "\nRecommended summer combination:")
@@ -102,105 +104,55 @@
 ;often appear with it, along with number that shows how many times they are liked together
 ;using this, system will recommend combinations that are often liked by users that also like
 ;combination that our user likes, we could say they have similar taste in fashion
-(defn co-occurrence [user-ratings]
-  (let [grouped-ratings (group-by :user-id user-ratings)]
-    (into {}
-          (reduce (fn [cooc [user ratings]]
-                    (reduce (fn [c rating1]
-                              (reduce (fn [c rating2]
-                                        (if (and (not= (:combination-id rating1) (:combination-id rating2))
-                                                 (= (:rating rating1) (:rating rating2)))
-                                          (update-in c [(:combination-id rating1) (:combination-id rating2)] (fnil inc 0))
-                                          c))
-                                      c
-                                      (seq ratings)))
-                            cooc
-                            (seq ratings)))
-                  {}
-                  grouped-ratings))))
 
-;extracts recommendations that are relevant for our user based on co-ocurence matrix
-;if user dislikes combination, another one is being presented, and so on
-;if he likes it, that is it, and the results are being updated in user-ratings.
-;if user is new and does not have any liked combinations, then a combination will be generated
-;through recommendation function
-(defn recommend
-  [user-id user-ratings co-occurrence-matrix pieces-of-clothing season & {:keys [input-fn output-fn]
-                                                                          :or   {input-fn  read-line
-                                                                                 output-fn println}}]
-  (let [user-rated (get user-ratings user-id)]
+;co-occurrence shows combinations that we assume our user will like, based on fact
+;that our user liked particular combination, and so did some other user - and now
+;combinations that other user liked are being recommended to our user, because
+;we can say they have similar taste in fashion
+;co-occurrence contains of pairs: combination-id and 'weight' that represents
+;how many times that combinations appears liked together with combinations that our user likes
+(defn co-occurrence [user-id user-ratings]
+  (let [grouped-ratings (group-by :user-id user-ratings)    ;we group user-ratings by user
+        target-user-ratings (filter #(and (= (:user-id %) user-id)
+                                          (= (:rating %) :like))
+                                    user-ratings)           ; filter liked ratings for our user
+        target-combinations (set (map :combination-id target-user-ratings))] ; combinations that targer user liked
+    (->> grouped-ratings
+         (reduce (fn [recommendations [other-user other-ratings]]
+                   (if (= other-user user-id)
+                     recommendations                        ; skipping target user
+                     (reduce (fn [recs rating]
+                               (let [comb-id (:combination-id rating)]
+                                 (if (and (= (:rating rating) :like) ; only liked combinations
+                                          (not (target-combinations comb-id))) ; combinations that target user didn't evaluate
+                                   (update recs comb-id (fnil inc 0))
+                                   recs)))
+                             recommendations
+                             other-ratings)))
+                 {}))))
+
+; recommend combinations in two ways - if user does not have ratings (user feedback) yet,
+; recommend him a combination based on application logic in recommendation function;
+; if user has rated combinations - find 'similar' combinations from other users that
+; liked combinations that our user liked - so we can assume they have similar taste
+(defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
+  (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)] ; target user's ratings
     (if (empty? user-rated)
-      (let [initial-recommendations (recommendation pieces-of-clothing season)]
-        (output-fn (str "Initial recommendations: " initial-recommendations))
-        (loop [remaining-recommendations initial-recommendations
-               updated-ratings {}]
-          (if-let [current (first remaining-recommendations)]
-            (do
-              (output-fn (str "Do you like this combination? " current " (like/dislike)"))
-              (let [feedback (input-fn)]
-                (cond
-                  (= feedback "like")
-                  (do
-                    (output-fn "Thanks! This combination will be added to favorites.")
-                    (insert-combination-and-feedback current user-id feedback)
-                    nil)
-
-                  (= feedback "dislike")
-                  (do
-                    (output-fn "Ok, I will recommend another combination...")
-                    (insert-combination-and-feedback current user-id feedback)
-                    (recur (rest remaining-recommendations)
-                           (assoc updated-ratings current :dislike)))
-                  :else
-                  (do
-                    (output-fn "Please enter 'like' or 'dislike'.")
-                    (recur remaining-recommendations updated-ratings)))))))
-        (output-fn "No remaining recommendations. Thanks for the feedback!"))
-      (let [liked-combos (set (keys (filter #(= :like (val %)) user-rated)))
-            recommendations (reduce (fn [rec combo]
-                                      (merge-with + rec (get co-occurrence-matrix combo {})))
-                                    {}
-                                    liked-combos)]
-        (output-fn (str "Recommendations based on your preferences: " recommendations))
-
-        (loop [remaining-recommendations (->> recommendations
-                                              (remove #(contains? user-rated (key %)))
-                                              (sort-by val >)
-                                              (map key))
-               updated-ratings user-rated]
-          (if-let [current (first remaining-recommendations)]
-            (do
-              (output-fn (str "Do you like this combination? " current " (like/dislike)"))
-              (let [feedback (input-fn)]
-                (if (= feedback "like")
-                  (do
-                    (output-fn "Thanks! This combination will be added to favorites.")
-                    ; add feedback for this combination
-                    (insert-feedback user-id (get :combination-id current) feedback))
-                  (let [next-ratings (if (= feedback "dislike")
-                                       ; update the map for "dislike"
-                                       (assoc updated-ratings current :dislike)
-                                       ; leave ratings unchanged for invalid input
-                                       updated-ratings)]
-                    (cond
-                      (= feedback "like")
-                      (do
-                        (output-fn "Thanks! This combination will be added to favorites.")
-                        (insert-feedback user-id (get :combination-id current) feedback)
-                        (recur (rest remaining-recommendations) next-ratings))
-
-                      (= feedback "dislike")
-                      (do
-                        (output-fn "Ok, I will recommend another combination...")
-                        (insert-feedback user-id (get :combination-id current) feedback)
-                        (recur (rest remaining-recommendations) next-ratings))
-
-                      :else
-                      (do
-                        (output-fn "Please enter 'like' or 'dislike'.")
-                        (recur remaining-recommendations updated-ratings)))))))
-            (output-fn "No remaining recommendations. Thanks for the feedback!")))))))
-
+      (do
+        ;(println "User has no ratings, returning generic recommendations.")
+        (recommendation pieces-of-clothing season))         ; generic recommendation
+      (let [co-occurrences (co-occurrence user-id user-ratings)
+            recommendations (->> co-occurrences
+                                 (sort-by val >)            ; sort by value descending
+                                 (map key))]                ; combination-id only
+        (if (empty? recommendations)
+          (do
+            ;(println "No recommendations from co-occurrence matrix, returning generic recommendations.")
+            (recommendation pieces-of-clothing season))     ; generic recommendation
+          (do
+            ;(println "Sorted recommendations by weight:" recommendations)
+            recommendations)))
+      )))
 
 (defn -main
   "I don't do a whole lot ... yet."

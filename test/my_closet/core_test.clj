@@ -54,9 +54,57 @@
 (fact "Insert user feedback to database"
       (insert-feedback 3 15 "dislike") =not=> nil)
 
-(fact "Testing updated co-occurrence-matrix function"
-      (let [ratings [{:user-id 1, :combination-id 15, :rating :like}
-                     {:user-id 1, :combination-id 16, :rating :like}
-                     {:user-id 2, :combination-id 15, :rating :like}
-                     {:user-id 2, :combination-id 17, :rating :dislike}]]
-        (co-occurrence ratings) => {15 {16 1}, 16 {15 1}}))
+(fact "Testing updated co-occurrence function"
+      (let [ratings1 [{:user-id 1, :combination-id 15, :rating :like}
+                      {:user-id 1, :combination-id 16, :rating :like}
+                      {:user-id 2, :combination-id 15, :rating :like}
+                      {:user-id 2, :combination-id 17, :rating :like}
+                      {:user-id 2, :combination-id 18, :rating :dislike}]
+            ratings2 [{:user-id 1, :combination-id 15, :rating :like}
+                      {:user-id 1, :combination-id 16, :rating :like}
+                      {:user-id 3, :combination-id 15, :rating :like}
+                      {:user-id 3, :combination-id 17, :rating :like}
+                      {:user-id 3, :combination-id 18, :rating :like}
+                      {:user-id 4, :combination-id 15, :rating :like}
+                      {:user-id 4, :combination-id 18, :rating :like}
+                      {:user-id 1, :combination-id 34, :rating :like}]]
+        (co-occurrence 1 ratings1) => {17 1}
+        (co-occurrence 2 ratings1) => {16 1}
+        (co-occurrence 1 ratings2) => {17 1, 18 2}))
+
+(fact "Recommend combinations based on application logic"
+      (let [ratings '({:user-id 1, :combination-id 15, :rating :like}
+                      {:user-id 1, :combination-id 16, :rating :like}
+                      {:user-id 1, :combination-id 31, :rating :dislike}
+                      {:user-id 1, :combination-id 32, :rating :dislike}
+                      {:user-id 1, :combination-id 33, :rating :dislike}
+                      {:user-id 1, :combination-id 34, :rating :like}
+                      {:user-id 3, :combination-id 15, :rating :dislike})
+            pieces '({:id 1, :type :top, :color :white, :season :summer, :name "White T-shirt", :photo "..."}
+                     {:id 2, :type :bottom, :color :black, :season :universal, :name "Black pants", :photo "..."}
+                     {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."}
+                     {:id 4, :type :top, :color :green, :season :summer, :name "Green T-shirt", :photo "..."}
+                     {:id 8, :type :jacket, :color :black, :season :winter, :name "Black Winter Jacket", :photo "..."})]
+
+        (recommend-combinations 2 ratings :summer pieces) => '(({:id 1, :type :top, :color :white, :season :summer, :name "White T-shirt", :photo "..."}
+                                                                {:id 2, :type :bottom, :color :black, :season :universal, :name "Black pants", :photo "..."}
+                                                                {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."})
+                                                               ({:id 2, :type :bottom, :color :black, :season :universal, :name "Black pants", :photo "..."}
+                                                                {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."}
+                                                                {:id 4, :type :top, :color :green, :season :summer, :name "Green T-shirt", :photo "..."}))))
+
+(fact "Recommend combinations based on co-occurrence matrix"
+      (let [ratings '({:user-id 1, :combination-id 15, :rating :like}
+                      {:user-id 1, :combination-id 16, :rating :like}
+                      {:user-id 1, :combination-id 31, :rating :dislike}
+                      {:user-id 3, :combination-id 32, :rating :like}
+                      {:user-id 1, :combination-id 33, :rating :dislike}
+                      {:user-id 1, :combination-id 34, :rating :like}
+                      {:user-id 3, :combination-id 15, :rating :like})
+            pieces '({:id 1, :type :top, :color :white, :season :summer, :name "White T-shirt", :photo "..."}
+                     {:id 2, :type :bottom, :color :black, :season :universal, :name "Black pants", :photo "..."}
+                     {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."}
+                     {:id 4, :type :top, :color :green, :season :summer, :name "Green T-shirt", :photo "..."}
+                     {:id 8, :type :jacket, :color :black, :season :winter, :name "Black Winter Jacket", :photo "..."})]
+
+        (recommend-combinations 1 ratings :summer pieces) => [32]))
