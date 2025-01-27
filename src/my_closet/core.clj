@@ -165,10 +165,12 @@
     (cond
       (and (seq? combinations)
            (seq? (first combinations)))
-      (do (str "Recommendation is a generic set of clothing combinations"))
+      (do
+        (first combinations))
       (and (seq? combinations)
            (number? (first combinations)))
-      (do (str "Recommendation is a list of combination IDs"))
+      (do
+        (get-combination (first combinations)))
       :else
       (do
         (str "Unexpected format for recommendations")

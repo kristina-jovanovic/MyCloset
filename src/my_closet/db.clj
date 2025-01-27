@@ -30,6 +30,7 @@
   (format-clothing-items (jdbc/execute! db-spec
                                         ["SELECT * FROM `clothing_items`"])))
 
+;insert new combination and feedback
 (defn insert-combination-and-feedback [combination user-id rating]
   (jdbc/with-transaction [tx db-spec]
                          (let [description (str/join ", " (map :name combination))
@@ -64,5 +65,11 @@
                  ["INSERT INTO user_feedback (user_id, combination_id, rating) VALUES (?, ?, ?)"
                   user-id combination-id rating]))
 
-(get-user-feedback db-spec)
+(defn get-combination [combination-id]
+  (format-clothing-items (jdbc/execute! db-spec
+                                       ["SELECT cl.*  FROM `combination_items` ci JOIN `clothing_items` cl ON ci.clothing_item_id=cl.clothing_item_id
+                                        WHERE combination_id=?"
+                                        combination-id])))
+
+
 
