@@ -108,3 +108,26 @@
                      {:id 8, :type :jacket, :color :black, :season :winter, :name "Black Winter Jacket", :photo "..."})]
 
         (recommend-combinations 1 ratings :summer pieces) => [32]))
+
+(fact "Checking format for return value of recommend-combinations"
+      (let [ratings1 '({:user-id 1, :combination-id 15, :rating :like}
+                      {:user-id 1, :combination-id 16, :rating :like}
+                      {:user-id 1, :combination-id 31, :rating :dislike}
+                      {:user-id 1, :combination-id 32, :rating :dislike}
+                      {:user-id 1, :combination-id 33, :rating :dislike}
+                      {:user-id 1, :combination-id 34, :rating :like}
+                      {:user-id 3, :combination-id 15, :rating :dislike})
+            ratings2 '({:user-id 1, :combination-id 15, :rating :like}
+                       {:user-id 1, :combination-id 16, :rating :like}
+                       {:user-id 1, :combination-id 31, :rating :dislike}
+                       {:user-id 3, :combination-id 32, :rating :like}
+                       {:user-id 1, :combination-id 33, :rating :dislike}
+                       {:user-id 1, :combination-id 34, :rating :like}
+                       {:user-id 3, :combination-id 15, :rating :like})
+            pieces '({:id 1, :type :top, :color :white, :season :summer, :name "White T-shirt", :photo "..."}
+                     {:id 2, :type :bottom, :color :black, :season :universal, :name "Black pants", :photo "..."}
+                     {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."}
+                     {:id 4, :type :top, :color :green, :season :summer, :name "Green T-shirt", :photo "..."}
+                     {:id 8, :type :jacket, :color :black, :season :winter, :name "Black Winter Jacket", :photo "..."})]
+        (recommend 1 ratings1 :summer pieces) => "Recommendation is a generic set of clothing combinations"
+        (recommend 1 ratings2 :summer pieces) => "Recommendation is a list of combination IDs"))

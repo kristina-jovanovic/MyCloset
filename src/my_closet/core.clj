@@ -141,6 +141,7 @@
       (do
         ;(println "User has no ratings, returning generic recommendations.")
         (recommendation pieces-of-clothing season))         ; generic recommendation
+      ;it returns seq of combinations that contain pieces of clothing
       (let [co-occurrences (co-occurrence user-id user-ratings)
             recommendations (->> co-occurrences
                                  (sort-by val >)            ; sort by value descending
@@ -149,10 +150,29 @@
           (do
             ;(println "No recommendations from co-occurrence matrix, returning generic recommendations.")
             (recommendation pieces-of-clothing season))     ; generic recommendation
+          ;it returns seq of combinations that contain pieces of clothing
+
           (do
             ;(println "Sorted recommendations by weight:" recommendations)
-            recommendations)))
+            recommendations)
+          ;it returns seq of combination-ids sorted by weight
+          ))
       )))
+
+(defn recommend [user-id user-ratings season pieces-of-clothing]
+  (let [combinations
+        (recommend-combinations user-id user-ratings season pieces-of-clothing)]
+    (cond
+      (and (seq? combinations)
+           (seq? (first combinations)))
+      (do (str "Recommendation is a generic set of clothing combinations"))
+      (and (seq? combinations)
+           (number? (first combinations)))
+      (do (str "Recommendation is a list of combination IDs"))
+      :else
+      (do
+        (str "Unexpected format for recommendations")
+        nil))))
 
 (defn -main
   "I don't do a whole lot ... yet."
