@@ -166,7 +166,7 @@
       (and (seq? combinations)
            (seq? (first combinations)))
       (do
-        (first combinations))
+        (rand-nth combinations))
       (and (seq? combinations)
            (number? (first combinations)))
       (do
@@ -176,9 +176,11 @@
         (str "Unexpected format for recommendations")
         nil))))
 
+(recommend 2 user-ratings :summer pieces-of-clothing)
+
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  ;(recommend 1 user-ratings (co-occurrence user-ratings) pieces-of-clothing :summer)
   (println "Hello, World!")
   )

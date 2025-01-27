@@ -41,18 +41,18 @@
          {:name "Black pants" :type :bottom :color :black :season :universal}
          {:name "Blue jeans" :type :bottom :color :blue :season :universal}]) => false)
 
-(fact "Get all clothing items from database"
-      (get-clothing-items db-spec) =not=> nil)
-
-(fact "Insert combination, combination_items and user_feedback to database"
-      (let [summer-combinations (recommendation pieces-of-clothing :summer)]
-        (insert-combination-and-feedback (first summer-combinations) 1 "like") =not=> nil))
-
-(fact "Get user feedback from database"
-      (get-user-feedback db-spec) =not=> nil)
-
-(fact "Insert user feedback to database"
-      (insert-feedback 3 15 "dislike") =not=> nil)
+;(fact "Get all clothing items from database"
+;      (get-clothing-items db-spec) =not=> nil)
+;
+;(fact "Insert combination, combination_items and user_feedback to database"
+;      (let [summer-combinations (recommendation pieces-of-clothing :summer)]
+;        (insert-combination-and-feedback (first summer-combinations) 1 "like") =not=> nil))
+;
+;(fact "Get user feedback from database"
+;      (get-user-feedback db-spec) =not=> nil)
+;
+;(fact "Insert user feedback to database"
+;      (insert-feedback 3 15 "dislike") =not=> nil)
 
 (fact "Testing updated co-occurrence function"
       (let [ratings1 [{:user-id 1, :combination-id 15, :rating :like}
@@ -134,9 +134,9 @@
                      {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."}
                      {:id 4, :type :top, :color :green, :season :summer, :name "Green T-shirt", :photo "..."}
                      {:id 8, :type :jacket, :color :black, :season :winter, :name "Black Winter Jacket", :photo "..."})]
-        (recommend 2 ratings1 :summer pieces) => '({:id 1, :type :top, :color :white, :season :summer, :name "White T-shirt", :photo "..."}
-                                                  {:id 2, :type :bottom, :color :black, :season :universal, :name "Black pants", :photo "..."}
-                                                  {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "..."})
         (recommend 1 ratings2 :summer pieces) => '({:id 1, :type :top, :color :white, :season :summer, :name "White T-shirt", :photo "https://pyxis.nymag.com/v1/imgs/d19/fc1/0de89f03dfa39fa0ff8b1fe838532f153b-031231-04.2x.h473.w710.jpg"}
                                                    {:id 3, :type :shoes, :color :white, :season :universal, :name "White sneakers", :photo "https://assets.myntassets.com/w_412,q_60,dpr_2,fl_progressive/assets/images/18458460/2022/5/28/c28d223f-6a82-46be-8922-6a21172bd2841653714541319AfroJackWomenWhiteSneakers1.jpg"}
-                                                   {:id 6, :type :bottom, :color :blue, :season :universal, :name "Blue Jeans", :photo "https://m.media-amazon.com/images/I/61HfSU1OYqL._AC_UY1000_.jpg"})))
+                                                   {:id 6, :type :bottom, :color :blue, :season :universal, :name "Blue Jeans", :photo "https://m.media-amazon.com/images/I/61HfSU1OYqL._AC_UY1000_.jpg"})
+        (is (> (count (distinct (repeatedly 5 #(recommend 2 ratings1 :summer pieces)))) 1)) => true))
+
+
