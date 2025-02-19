@@ -1,8 +1,12 @@
 (ns my-closet.core
-  (:gen-class)
   (:require [clojure.set :as set]
             [clojure.math.combinatorics :as combo]
-            [my-closet.db :refer :all]))
+            [my-closet.db :refer :all]
+            [ring.adapter.jetty :as ring-jetty]
+            [reitit.ring :as ring]
+            [muuntaja.core :as m]
+            [reitit.ring.middleware.muuntaja :as muuntaja])
+  (:gen-class))
 
 ;defining color rules - every color has a set of colors that matches
 (def color-rules
@@ -182,8 +186,41 @@
 ;(recommend 2 user-ratings :summer pieces-of-clothing)
 
 
+(defn home-response [_]
+  {:status 200
+   :body   "Welcome to My Closet!"})
+
+(def filters (atom {}))
+
+(defn set-filters [{new-filters :body-params}]
+  (reset! filters new-filters)
+  {:status 200
+   :body   @filters})
+;{:casual true, :work false, :formal false, :party false, :summer true, :winter false}
+
+(defn get-recommendations-response [_]
+  {:status 200
+   :body (recommend-combinations 2 user-ratings :summer pieces-of-clothing)})
+
+(defn my-clothes-response [_]
+  {:status 200
+   :body   pieces-of-clothing})
+
+(def app
+  (ring/ring-handler
+    (ring/router
+      ["/"
+       ["get-recommendations" {:get  get-recommendations-response
+                               :post set-filters}]
+       ["my-clothes" my-clothes-response]
+       ["" home-response]]
+      {:data {:muuntaja   m/instance
+              :middleware [muuntaja/format-middleware]}})))
+
+(defn start []
+  (ring-jetty/run-jetty app {:port  3000
+                             :join? false}))
+
 (defn -main
-  "I don't do a whole lot ... yet."
   [& args]
-  (println "Hello, World!")
-  )
+  (start))
