@@ -157,8 +157,12 @@
             recommendations)
           ;it returns seq of combination-ids sorted by weight
           ))
-      )))
+      )
+    ))
 
+;if combination is a seq, it is generic recommendation and we will return random combination from combinations
+;if combination is a number, it is recommended through co-occurence and we will return first one,
+;because they are sorted by weights and the first one is the most accurate
 (defn recommend [user-id user-ratings season pieces-of-clothing]
   (let [combinations
         (recommend-combinations user-id user-ratings season pieces-of-clothing)]
@@ -173,10 +177,9 @@
         (get-combination (first combinations)))
       :else
       (do
-        (str "Unexpected format for recommendations")
-        nil))))
+        (str "Unexpected format for recommendations")))))
 
-(recommend 2 user-ratings :summer pieces-of-clothing)
+;(recommend 2 user-ratings :summer pieces-of-clothing)
 
 
 (defn -main

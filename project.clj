@@ -6,7 +6,11 @@
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [midje "1.9.10"]
                  [seancorfield/next.jdbc "1.2.659"]
-                 [mysql/mysql-connector-java "8.0.26"]]
+                 [mysql/mysql-connector-java "8.0.26"]
+                 [ring/ring-core "1.13.0"]
+                 [ring/ring-jetty-adapter "1.8.2"]
+                 [metosin/reitit "0.8.0-alpha1"]
+                 [metosin/muuntaja "0.6.11"]]
   :main ^:skip-aot my-closet.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
