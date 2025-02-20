@@ -2,10 +2,14 @@
   (:require [clojure.set :as set]
             [clojure.math.combinatorics :as combo]
             [my-closet.db :refer :all]
+            [ring.util.response :refer [header response]]
+            ;[ring.adapter.jetty :refer [run-jetty]]
             [ring.adapter.jetty :as ring-jetty]
             [reitit.ring :as ring]
             [muuntaja.core :as m]
-            [reitit.ring.middleware.muuntaja :as muuntaja])
+            [reitit.ring.middleware.muuntaja :as muuntaja]
+            [ring.middleware.cors :refer [wrap-cors]]
+            [ring.util.response :refer [header response]])
   (:gen-class))
 
 ;defining color rules - every color has a set of colors that matches
@@ -185,7 +189,6 @@
 
 ;(recommend 2 user-ratings :summer pieces-of-clothing)
 
-
 (defn home-response [_]
   {:status 200
    :body   "Welcome to My Closet!"})
@@ -218,8 +221,9 @@
               :middleware [muuntaja/format-middleware]}})))
 
 (defn start []
-  (ring-jetty/run-jetty app {:port  3000
-                             :join? false}))
+  (ring-jetty/run-jetty (wrap-cors app
+                                   :access-control-allow-origin [#"http://localhost:8280"]
+                                   :access-control-allow-methods [:get :post]) {:port 3000 :join? false}))
 
 (defn -main
   [& args]
