@@ -191,6 +191,7 @@
 
 (defn home-response [_]
   {:status 200
+   :headers {"Content-Type" "application/edn"}
    :body   "Welcome to My Closet!"})
 
 (def filters (atom {}))
@@ -198,15 +199,18 @@
 (defn set-filters [{new-filters :body-params}]
   (reset! filters new-filters)
   {:status 200
+   :headers {"Content-Type" "application/edn"}
    :body   @filters})
 ;{:casual true, :work false, :formal false, :party false, :summer true, :winter false}
 
 (defn get-recommendations-response [_]
   {:status 200
+   :headers {"Content-Type" "application/edn"}
    :body (recommend-combinations 2 user-ratings :summer pieces-of-clothing)})
 
 (defn my-clothes-response [_]
   {:status 200
+   :headers {"Content-Type" "application/edn"}
    :body   pieces-of-clothing})
 
 (def app
