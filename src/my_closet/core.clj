@@ -9,7 +9,8 @@
             [muuntaja.core :as m]
             [reitit.ring.middleware.muuntaja :as muuntaja]
             [ring.middleware.cors :refer [wrap-cors]]
-            [ring.util.response :refer [header response]])
+            [ring.util.response :refer [header response]]
+            [cheshire.core :as json])
   (:gen-class))
 
 ;defining color rules - every color has a set of colors that matches
@@ -210,8 +211,8 @@
 
 (defn my-clothes-response [_]
   {:status 200
-   :headers {"Content-Type" "application/edn"}
-   :body   pieces-of-clothing})
+   :headers {"Content-Type" "application/json"}
+   :body   (json/generate-string pieces-of-clothing)})
 
 (def app
   (ring/ring-handler

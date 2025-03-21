@@ -20,6 +20,7 @@
     <orderEntry type="library" name="Leiningen: borkdude/dynaload:0.3.5" level="project" />
     <orderEntry type="library" name="Leiningen: borkdude/edamame:1.4.27" level="project" />
     <orderEntry type="library" name="Leiningen: camel-snake-kebab:0.4.2" level="project" />
+    <orderEntry type="library" name="Leiningen: cheshire:5.13.0" level="project" />
     <orderEntry type="library" name="Leiningen: clj-time:0.15.1" level="project" />
     <orderEntry type="library" name="Leiningen: clj-tuple:0.2.2" level="project" />
     <orderEntry type="library" name="Leiningen: colorize:0.1.1" level="project" />
@@ -29,6 +30,8 @@
     <orderEntry type="library" name="Leiningen: com.fasterxml.jackson.core/jackson-annotations:2.17.2" level="project" />
     <orderEntry type="library" name="Leiningen: com.fasterxml.jackson.core/jackson-core:2.17.2" level="project" />
     <orderEntry type="library" name="Leiningen: com.fasterxml.jackson.core/jackson-databind:2.17.2" level="project" />
+    <orderEntry type="library" name="Leiningen: com.fasterxml.jackson.dataformat/jackson-dataformat-cbor:2.17.0" level="project" />
+    <orderEntry type="library" name="Leiningen: com.fasterxml.jackson.dataformat/jackson-dataformat-smile:2.17.0" level="project" />
     <orderEntry type="library" name="Leiningen: com.fasterxml.jackson.datatype/jackson-datatype-jsr310:2.18.2" level="project" />
     <orderEntry type="library" name="Leiningen: com.google.protobuf/protobuf-java:3.11.4" level="project" />
     <orderEntry type="library" name="Leiningen: com.googlecode.json-simple/json-simple:1.1.1" level="project" />
@@ -112,5 +115,6 @@
     <orderEntry type="library" name="Leiningen: seancorfield/next.jdbc:1.2.659" level="project" />
     <orderEntry type="library" name="Leiningen: slingshot:0.12.2" level="project" />
     <orderEntry type="library" name="Leiningen: tech.droit/clj-diff:1.0.1" level="project" />
+    <orderEntry type="library" name="Leiningen: tigris:0.1.2" level="project" />
   </component>
 </module>

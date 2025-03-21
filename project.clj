@@ -11,7 +11,8 @@
                  [ring/ring-jetty-adapter "1.8.2"]
                  [ring-cors "0.1.13"]
                  [metosin/reitit "0.8.0-alpha1"]
-                 [metosin/muuntaja "0.6.11"]]
+                 [metosin/muuntaja "0.6.11"]
+                 [cheshire "5.13.0"]]
   :main ^:skip-aot my-closet.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
