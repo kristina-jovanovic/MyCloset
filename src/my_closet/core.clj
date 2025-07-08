@@ -3,14 +3,18 @@
             [clojure.math.combinatorics :as combo]
             [my-closet.db :refer :all]
             [ring.util.response :refer [header response]]
-            ;[ring.adapter.jetty :refer [run-jetty]]
+    ;[ring.adapter.jetty :refer [run-jetty]]
             [ring.adapter.jetty :as ring-jetty]
             [reitit.ring :as ring]
             [muuntaja.core :as m]
             [reitit.ring.middleware.muuntaja :as muuntaja]
             [ring.middleware.cors :refer [wrap-cors]]
             [ring.util.response :refer [header response]]
-            [cheshire.core :as json])
+            [ring.util.response :as response]
+            [cheshire.core :as json]
+            [clojure.java.io :as io]
+            [ring.middleware.params :refer [wrap-params]]
+            [ring.middleware.json :refer [wrap-json-body wrap-json-response]])
   (:gen-class))
 
 ;defining color rules - every color has a set of colors that matches
@@ -82,8 +86,8 @@
                               (= (:season %) :universal))
                          pieces-of-clothing)]
     ;(println "Filtered pieces:" filtered)
-    (filter combination-of-more-pieces-valid?
-            (all-combinations-in-range 2 4 filtered))))
+    (vec (filter combination-of-more-pieces-valid?
+                 (all-combinations-in-range 2 4 filtered)))))
 
 ;(recommendation pieces-of-clothing :summer)
 
@@ -123,51 +127,42 @@
 (defn co-occurrence [user-id user-ratings]
   (let [grouped-ratings (group-by :user-id user-ratings)    ;we group user-ratings by user
         target-user-ratings (filter #(and (= (:user-id %) user-id)
-                                          (= (:rating %) :like))
+                                          (= (:opinion %) :like))
                                     user-ratings)           ; filter liked ratings for our user
         target-combinations (set (map :combination-id target-user-ratings))] ; combinations that targer user liked
-    (->> grouped-ratings
-         (reduce (fn [recommendations [other-user other-ratings]]
-                   (if (= other-user user-id)
-                     recommendations                        ; skipping target user
-                     (reduce (fn [recs rating]
-                               (let [comb-id (:combination-id rating)]
-                                 (if (and (= (:rating rating) :like) ; only liked combinations
-                                          (not (target-combinations comb-id))) ; combinations that target user didn't evaluate
-                                   (update recs comb-id (fnil inc 0))
-                                   recs)))
-                             recommendations
-                             other-ratings)))
-                 {}))))
+    (vec
+      (->> grouped-ratings
+           (reduce (fn [recommendations [other-user other-ratings]]
+                     (if (= other-user user-id)
+                       recommendations                      ; skipping target user
+                       (reduce (fn [recs op]
+                                 (let [comb-id (:combination-id op)]
+                                   (if (and (= (:opinion op) :like) ; only liked combinations
+                                            (not (target-combinations comb-id))) ; combinations that target user didn't evaluate
+                                     (update recs comb-id (fnil inc 0))
+                                     recs)))
+                               recommendations
+                               other-ratings)))
+                   {})))))
 
 ; recommend combinations in two ways - if user does not have ratings (user feedback) yet,
 ; recommend him a combination based on application logic in recommendation function;
 ; if user has rated combinations - find 'similar' combinations from other users that
 ; liked combinations that our user liked - so we can assume they have similar taste
 (defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
-  (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)] ; target user's ratings
+  (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
     (if (empty? user-rated)
-      (do
-        ;(println "User has no ratings, returning generic recommendations.")
-        (recommendation pieces-of-clothing season))         ; generic recommendation
-      ;it returns seq of combinations that contain pieces of clothing
-      (let [co-occurrences (co-occurrence user-id user-ratings)
-            recommendations (->> co-occurrences
-                                 (sort-by val >)            ; sort by value descending
-                                 (map key))]                ; combination-id only
-        (if (empty? recommendations)
-          (do
-            ;(println "No recommendations from co-occurrence matrix, returning generic recommendations.")
-            (recommendation pieces-of-clothing season))     ; generic recommendation
-          ;it returns seq of combinations that contain pieces of clothing
+      (recommendation pieces-of-clothing season)
+      (let [co-occurrences (co-occurrence user-id user-ratings)]
+        (let [recommendations (->> co-occurrences
+                                   (sort-by val >)
+                                   (map key)
+                                   vec)]
 
-          (do
-            ;(println "Sorted recommendations by weight:" recommendations)
-            recommendations)
-          ;it returns seq of combination-ids sorted by weight
-          ))
-      )
-    ))
+          (if (empty? recommendations)
+            (recommendation pieces-of-clothing season)
+            recommendations))))))
+
 
 ;if combination is a seq, it is generic recommendation and we will return random combination from combinations
 ;if combination is a number, it is recommended through co-occurence and we will return first one,
@@ -175,12 +170,13 @@
 (defn recommend [user-id user-ratings season pieces-of-clothing]
   (let [combinations
         (recommend-combinations user-id user-ratings season pieces-of-clothing)]
+    (println combinations)
     (cond
-      (and (seq? combinations)
-           (seq? (first combinations)))
+      (and (sequential? combinations)
+           (sequential? (first combinations)))
       (do
         (rand-nth combinations))
-      (and (seq? combinations)
+      (and (sequential? combinations)
            (number? (first combinations)))
       (do
         (get-combination (first combinations)))
@@ -191,44 +187,129 @@
 ;(recommend 2 user-ratings :summer pieces-of-clothing)
 
 (defn home-response [_]
-  {:status 200
-   :headers {"Content-Type" "application/edn"}
-   :body   "Welcome to My Closet!"})
+  {:status  200
+   :headers {"Content-Type" "application/json"}
+   :body    "Welcome to My Closet!"})
 
 (def filters (atom {}))
 
 (defn set-filters [{new-filters :body-params}]
   (reset! filters new-filters)
-  {:status 200
-   :headers {"Content-Type" "application/edn"}
-   :body   @filters})
+  {:status  200
+   :headers {"Content-Type" "application/json"}
+   :body    @filters})
 ;{:casual true, :work false, :formal false, :party false, :summer true, :winter false}
 
 (defn get-recommendations-response [_]
-  {:status 200
-   :headers {"Content-Type" "application/edn"}
-   :body (recommend-combinations 2 user-ratings :summer pieces-of-clothing)})
+  (let [recommendations (recommend 1 user-ratings :summer pieces-of-clothing)]
+    {:status  200
+     :headers {"Content-Type" "application/json"}
+     :body    (json/generate-string recommendations)})
+  )
+
+(defn get-one-recommendation-response [req]
+  (let [id (:body-params req)
+        combination (get-combination id)]
+    {:status  200
+     :headers {"Content-Type" "application/json"}
+     :body    (json/generate-string combination)}))
 
 (defn my-clothes-response [_]
-  {:status 200
+  {:status  200
    :headers {"Content-Type" "application/json"}
-   :body   (json/generate-string pieces-of-clothing)})
+   :body    (json/generate-string pieces-of-clothing)})
+
+(defn insert-feedback-response [req]
+  (let [feedback (:body-params req)
+        user-id (:user-id feedback)
+        combination (:combination feedback)
+        opinion (:opinion feedback)]
+    (println "Primljen feedback:" feedback)
+    (insert-combination-and-feedback combination user-id opinion)
+    {:status 200
+     :headers {"Content-Type" "application/json"}
+     :body (json/generate-string {:msg "primljeno"})}))
+
+;(defn cors-options-response [_]
+;  {:status 200
+;   :headers {"Access-Control-Allow-Origin" "http://localhost:8280"
+;             "Access-Control-Allow-Methods" "GET, POST, OPTIONS"
+;             "Access-Control-Allow-Headers" "Content-Type"}})
+
+;(defn cors-response [response]
+;  (-> response
+;      (header "Access-Control-Allow-Origin" "http://localhost:8280")
+;      (header "Access-Control-Allow-Methods" "GET, POST, OPTIONS")
+;      (header "Access-Control-Allow-Headers" "Content-Type")))
+;
+;(defn cors-middleware [handler]
+;  (fn [request]
+;    (if (= (:request-method request) :options)
+;      (cors-response (response ""))
+;      (cors-response (handler request)))))
+
+;(def app
+;  (ring/ring-handler
+;    (ring/router
+;      ["/"
+;       ["get-recommendations" {:get  get-recommendations-response
+;                               :post set-filters}]
+;       ["my-clothes" my-clothes-response]
+;       ["insert-feedback" {:post insert-feedback-response}]
+;       ["" home-response]]
+;      {:data {:muuntaja   m/instance
+;              :middleware [muuntaja/format-middleware]}})))
+;(def app
+;    (ring/ring-handler
+;      (ring/router
+;        ["/"
+;         ["get-recommendations" {:get  get-recommendations-response
+;                                 :post set-filters}]
+;         ["my-clothes" my-clothes-response]
+;         ["insert-feedback" {:post insert-feedback-response}]
+;         ["" home-response]]
+;        {:data {:muuntaja   m/instance
+;                :middleware [muuntaja/format-middleware]}})))
+;
+;(defn start []
+;  (ring-jetty/run-jetty (cors-middleware app) {:port 3000 :join? false}))
 
 (def app
-  (ring/ring-handler
-    (ring/router
-      ["/"
-       ["get-recommendations" {:get  get-recommendations-response
-                               :post set-filters}]
-       ["my-clothes" my-clothes-response]
-       ["" home-response]]
-      {:data {:muuntaja   m/instance
-              :middleware [muuntaja/format-middleware]}})))
+  (-> (ring/ring-handler
+        (ring/router
+          ["/"
+           ["get-recommendations" {:get  get-recommendations-response
+                                   :post set-filters}]
+           ["get-combination" get-one-recommendation-response]
+           ["my-clothes" my-clothes-response]
+           ["insert-feedback" {:post insert-feedback-response}]
+           ["" home-response]]
+          {:data {:muuntaja   m/instance
+                  :middleware [muuntaja/format-middleware]}}))
+      (wrap-cors
+        :access-control-allow-origin [#"http://localhost:8280"]
+        :access-control-allow-methods [:get :post :options]
+        :access-control-allow-headers ["Content-Type"])
+      wrap-json-response))
+
+;(defn start []
+;  (ring-jetty/run-jetty app {:port 3000 :join? false}))
 
 (defn start []
   (ring-jetty/run-jetty (wrap-cors app
                                    :access-control-allow-origin [#"http://localhost:8280"]
-                                   :access-control-allow-methods [:get :post]) {:port 3000 :join? false}))
+                                   :access-control-allow-methods [:get :post :options]
+                                   :access-control-allow-headers ["Content-Type"])
+                        {:port 3000 :join? false}))
+
+
+;
+;(defn start []
+;  (ring-jetty/run-jetty (wrap-cors app
+;                                   :access-control-allow-origin [#"http://localhost:8280"]
+;                                   :access-control-allow-methods [:get :post :options]
+;                                   :access-control-allow-headers ["Content-Type" "application/json"])
+;                        {:port 3000 :join? false}))
 
 (defn -main
   [& args]
