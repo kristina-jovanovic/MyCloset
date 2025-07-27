@@ -27,13 +27,24 @@
                (update :season keyword))))
        data))
 
+(defn format-combination [data]
+  (map (fn [item]
+         (set/rename-keys item {:combinations/combination_id :combination-id
+                                :combinations/name :name
+                                :combinations/pieces :pieces
+                                :combinations/style :style}))
+       data))
+
+
 (defn get-clothing-items [db-spec]
   (format-clothing-items (jdbc/execute! db-spec
                                         ["SELECT * FROM `pieces_of_clothing`"])))
 
 ;logic in the beggining
 (defn determine-combination-style [pieces]
-  (let [styles (map #(set (str/split (:style %) #",")) pieces)
+  (let [styles (map #(set (remove str/blank?
+                                  (str/split (or (:style %) "") #",")))
+                    pieces)
         all-styles (apply set/union styles)
         has-formal? (contains? all-styles "formal")
         has-party? (contains? all-styles "party")
@@ -41,7 +52,6 @@
         has-work? (contains? all-styles "work")
         has-casual? (contains? all-styles "casual")
         all-universal? (every? #(= #{"universal"} %) styles)]
-
     (cond
       has-formal? "formal"
       has-party? "party"
@@ -51,19 +61,74 @@
       :else "casual")))
 
 ;insert new combination and feedback
+(defn insert-feedback [user-id combination-id opinion]
+  (jdbc/execute! db-spec
+                 ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                  user-id combination-id opinion]))
+
 (defn insert-combination-and-feedback [combination user-id opinion]
+  (println "📥 [insert-combination-and-feedback] RAW combination data:" combination)
   (jdbc/with-transaction [tx db-spec]
-                         (let [description (str/join ", " (map :name combination))
-                               pieces (str/join "," (map :piece-id combination))
-                               style (determine-combination-style combination)
-                               _ (jdbc/execute! tx
-                                                ["INSERT INTO combinations (name, pieces, style) VALUES (?, ?, ?)"
-                                                 description pieces style])
-                               inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
-                                               :last_id)]
-                           (jdbc/execute! tx
-                                          ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
-                                           user-id inserted-id opinion]))))
+                         (if (:combination_id combination)
+                           ; postojeca kombinacija – samo dodajem feedback
+                           (do
+                             (println "combination ima :combination_id => vec postoji u bazi, preskacem insert u combinations")
+                             (insert-feedback user-id (:combination_id combination) opinion)
+                             (println "feedback dodat za postojecu kombinaciju sa ID:" (:combination_id combination)))
+
+                           ; nova kombinacija – insert u combinations + feedback
+                           (let [items (cond
+                                         ; ako je lista sa :piece-id
+                                         (and (sequential? combination)
+                                              (map? (first combination))
+                                              (:piece-id (first combination)))
+                                         (do (println "combination je lista sa piece-id")
+                                             combination)
+
+                                         ; ako je mapa sa :pieces stringom
+                                         (and (map? combination) (:pieces combination))
+                                         (let [piece-ids (map #(Integer/parseInt (clojure.string/trim %))
+                                                              (clojure.string/split (:pieces combination) #","))]
+                                           (println "combination je mapa sa :pieces stringom -> piece-ids:" piece-ids)
+                                           (let [resolved (format-clothing-items
+                                                            (jdbc/execute! tx
+                                                                           (into [(str "SELECT * FROM `pieces_of_clothing` WHERE piece_id IN ("
+                                                                                       (clojure.string/join "," (repeat (count piece-ids) "?")) ")")]
+                                                                                 piece-ids)))]
+                                             (println "ucitani podaci iz baze za piece-ids:" resolved)
+                                             resolved))
+
+                                         :else
+                                         (do
+                                           (println "combination je u neocekivanom formatu:" (type combination))
+                                           (throw (ex-info "Unsupported combination format"
+                                                           {:combination combination}))))
+
+                                 description (str/join ", " (map :name items))
+                                 pieces (str/join "," (map :piece-id items))
+                                 style (determine-combination-style items)]
+
+                             (println "spremam insert nove kombinacije:")
+                             (println "    description:" description)
+                             (println "    pieces:" pieces)
+                             (println "    style:" style)
+
+                             ; INSERT kombinacije
+                             (jdbc/execute! tx
+                                            ["INSERT INTO combinations (name, pieces, style) VALUES (?, ?, ?)"
+                                             description pieces style])
+
+                             ; SELECT LAST_INSERT_ID
+                             (let [inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
+                                                   :last_id)]
+                               (println "INSERT kombinacije ok, id:" inserted-id)
+
+                               ; INSERT feedback
+                               (jdbc/execute! tx
+                                              ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                                               user-id inserted-id opinion])
+                               (println "feedback sacuvan za novu kombinaciju"))))))
+
 
 (defn format-user-feedback [data]
   (map (fn [item]
@@ -80,10 +145,6 @@
   (format-user-feedback (jdbc/execute! db-spec
                                        ["SELECT * FROM `feedback`"])))
 
-(defn insert-feedback [user-id combination-id opinion]
-  (jdbc/execute! db-spec
-                 ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
-                  user-id combination-id opinion]))
 
 (defn update-feedback [user-id combination-id rating]
   (jdbc/execute! db-spec
@@ -91,7 +152,7 @@
                   rating user-id combination-id]))
 
 (defn get-combination [combination-id]
-  (format-clothing-items (jdbc/execute! db-spec
+  (format-combination (jdbc/execute! db-spec
                                         ["SELECT * FROM `combinations`
                                         WHERE combination_id=?"
                                          combination-id])))

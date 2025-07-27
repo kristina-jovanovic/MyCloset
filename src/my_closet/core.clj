@@ -89,26 +89,6 @@
     (vec (filter combination-of-more-pieces-valid?
                  (all-combinations-in-range 2 4 filtered)))))
 
-;(recommendation pieces-of-clothing :summer)
-
-;(def summer-combinations
-;  (recommendation pieces-of-clothing :summer))
-;
-;;doseq = foreach
-;(doseq [comb summer-combinations]
-;  (println "\nRecommended summer combination:")
-;  (doseq [piece comb]
-;    (println (:name piece))))
-;
-;(def winter-combinations
-;  (recommendation pieces-of-clothing :winter))
-;
-;;doseq = foreach
-;(doseq [comb winter-combinations]
-;  (println "\nRecommended winter combination:")
-;  (doseq [piece comb]
-;    (println (:name piece))))
-
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
 (def user-ratings (get-user-feedback db-spec))
 
@@ -230,50 +210,6 @@
      :headers {"Content-Type" "application/json"}
      :body (json/generate-string {:msg "primljeno"})}))
 
-;(defn cors-options-response [_]
-;  {:status 200
-;   :headers {"Access-Control-Allow-Origin" "http://localhost:8280"
-;             "Access-Control-Allow-Methods" "GET, POST, OPTIONS"
-;             "Access-Control-Allow-Headers" "Content-Type"}})
-
-;(defn cors-response [response]
-;  (-> response
-;      (header "Access-Control-Allow-Origin" "http://localhost:8280")
-;      (header "Access-Control-Allow-Methods" "GET, POST, OPTIONS")
-;      (header "Access-Control-Allow-Headers" "Content-Type")))
-;
-;(defn cors-middleware [handler]
-;  (fn [request]
-;    (if (= (:request-method request) :options)
-;      (cors-response (response ""))
-;      (cors-response (handler request)))))
-
-;(def app
-;  (ring/ring-handler
-;    (ring/router
-;      ["/"
-;       ["get-recommendations" {:get  get-recommendations-response
-;                               :post set-filters}]
-;       ["my-clothes" my-clothes-response]
-;       ["insert-feedback" {:post insert-feedback-response}]
-;       ["" home-response]]
-;      {:data {:muuntaja   m/instance
-;              :middleware [muuntaja/format-middleware]}})))
-;(def app
-;    (ring/ring-handler
-;      (ring/router
-;        ["/"
-;         ["get-recommendations" {:get  get-recommendations-response
-;                                 :post set-filters}]
-;         ["my-clothes" my-clothes-response]
-;         ["insert-feedback" {:post insert-feedback-response}]
-;         ["" home-response]]
-;        {:data {:muuntaja   m/instance
-;                :middleware [muuntaja/format-middleware]}})))
-;
-;(defn start []
-;  (ring-jetty/run-jetty (cors-middleware app) {:port 3000 :join? false}))
-
 (def app
   (-> (ring/ring-handler
         (ring/router
@@ -282,7 +218,8 @@
                                    :post set-filters}]
            ["get-combination" get-one-recommendation-response]
            ["my-clothes" my-clothes-response]
-           ["insert-feedback" {:post insert-feedback-response}]
+           ["insert-feedback" {:post insert-feedback-response
+                               :options (fn [_] {:status 200})}]
            ["" home-response]]
           {:data {:muuntaja   m/instance
                   :middleware [muuntaja/format-middleware]}}))
@@ -292,24 +229,12 @@
         :access-control-allow-headers ["Content-Type"])
       wrap-json-response))
 
-;(defn start []
-;  (ring-jetty/run-jetty app {:port 3000 :join? false}))
-
 (defn start []
   (ring-jetty/run-jetty (wrap-cors app
                                    :access-control-allow-origin [#"http://localhost:8280"]
                                    :access-control-allow-methods [:get :post :options]
                                    :access-control-allow-headers ["Content-Type"])
                         {:port 3000 :join? false}))
-
-
-;
-;(defn start []
-;  (ring-jetty/run-jetty (wrap-cors app
-;                                   :access-control-allow-origin [#"http://localhost:8280"]
-;                                   :access-control-allow-methods [:get :post :options]
-;                                   :access-control-allow-headers ["Content-Type" "application/json"])
-;                        {:port 3000 :join? false}))
 
 (defn -main
   [& args]
