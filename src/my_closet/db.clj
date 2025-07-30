@@ -69,12 +69,12 @@
 (defn insert-combination-and-feedback [combination user-id opinion]
   (println "📥 [insert-combination-and-feedback] RAW combination data:" combination)
   (jdbc/with-transaction [tx db-spec]
-                         (if (:combination_id combination)
+                         (if (:combination-id combination)
                            ; postojeca kombinacija – samo dodajem feedback
                            (do
-                             (println "combination ima :combination_id => vec postoji u bazi, preskacem insert u combinations")
-                             (insert-feedback user-id (:combination_id combination) opinion)
-                             (println "feedback dodat za postojecu kombinaciju sa ID:" (:combination_id combination)))
+                             (println "combination ima :combination-id => vec postoji u bazi, preskacem insert u combinations")
+                             (insert-feedback user-id (:combination-id combination) opinion)
+                             (println "feedback dodat za postojecu kombinaciju sa ID:" (:combination-id combination)))
 
                            ; nova kombinacija – insert u combinations + feedback
                            (let [items (cond
@@ -124,9 +124,10 @@
                                (println "INSERT kombinacije ok, id:" inserted-id)
 
                                ; INSERT feedback
-                               (jdbc/execute! tx
-                                              ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
-                                               user-id inserted-id opinion])
+                               ;(jdbc/execute! tx
+                               ;               ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                               ;                user-id inserted-id opinion])
+                               (insert-feedback user-id inserted-id opinion)
                                (println "feedback sacuvan za novu kombinaciju"))))))
 
 

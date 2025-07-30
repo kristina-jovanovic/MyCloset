@@ -129,40 +129,78 @@
 ; recommend him a combination based on application logic in recommendation function;
 ; if user has rated combinations - find 'similar' combinations from other users that
 ; liked combinations that our user liked - so we can assume they have similar taste
+;(defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
+;  (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
+;    (if (empty? user-rated)
+;      (recommendation pieces-of-clothing season)
+;      (let [co-occurrences (co-occurrence user-id user-ratings)]
+;        (let [recommendations (->> co-occurrences
+;                                   (sort-by val >)
+;                                   (map key)
+;                                   vec)]
+;
+;          (if (empty? recommendations)
+;            (recommendation pieces-of-clothing season)
+;            recommendations))))))
 (defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
   (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
     (if (empty? user-rated)
+      ; ako korisnik nema ocene, koristi aplikacionu logiku
       (recommendation pieces-of-clothing season)
-      (let [co-occurrences (co-occurrence user-id user-ratings)]
-        (let [recommendations (->> co-occurrences
-                                   (sort-by val >)
-                                   (map key)
-                                   vec)]
-
-          (if (empty? recommendations)
-            (recommendation pieces-of-clothing season)
-            recommendations))))))
+      ; inace koristi co-occurrence
+      (let [co-occurrences (co-occurrence user-id user-ratings)
+            sorted-ids (->> co-occurrences
+                            (sort-by val >)
+                            (map key)
+                            vec)]
+        (println "CO-OCCURRENCE RECOMMENDATION IDS:" sorted-ids)
+        (if (empty? sorted-ids)
+          (recommendation pieces-of-clothing season)
+          ;  konvertuj ID-jeve u prave kombinacije
+          (mapv get-combination sorted-ids))))))
 
 
 ;if combination is a seq, it is generic recommendation and we will return random combination from combinations
 ;if combination is a number, it is recommended through co-occurence and we will return first one,
 ;because they are sorted by weights and the first one is the most accurate
+;(defn recommend [user-id user-ratings season pieces-of-clothing]
+;  (let [combinations
+;        (recommend-combinations user-id user-ratings season pieces-of-clothing)]
+;    (println combinations)
+;    (cond
+;      (and (sequential? combinations)
+;           (sequential? (first combinations)))
+;      (do
+;        (rand-nth combinations))
+;      (and (sequential? combinations)
+;           (number? (first combinations)))
+;      (do
+;        (get-combination (first combinations)))
+;      :else
+;      (do
+;        (str "Unexpected format for recommendations")))))
 (defn recommend [user-id user-ratings season pieces-of-clothing]
   (let [combinations
         (recommend-combinations user-id user-ratings season pieces-of-clothing)]
-    (println combinations)
+    (println "Final recommendations:" combinations)
     (cond
+      ;; generičke kombinacije
       (and (sequential? combinations)
            (sequential? (first combinations)))
-      (do
-        (rand-nth combinations))
+      combinations ; << umesto rand-nth
+
+      ;; co-occurrence kombinacije (lista ID-jeva)
       (and (sequential? combinations)
            (number? (first combinations)))
-      (do
-        (get-combination (first combinations)))
+      (mapv get-combination combinations)
+
       :else
       (do
-        (str "Unexpected format for recommendations")))))
+        (println "❌ Unexpected format for recommendations:" combinations)
+        []))))
+
+
+
 
 ;(recommend 2 user-ratings :summer pieces-of-clothing)
 
@@ -181,7 +219,7 @@
 ;{:casual true, :work false, :formal false, :party false, :summer true, :winter false}
 
 (defn get-recommendations-response [_]
-  (let [recommendations (recommend 1 user-ratings :summer pieces-of-clothing)]
+  (let [recommendations (recommend 2 user-ratings :summer pieces-of-clothing)]
     {:status  200
      :headers {"Content-Type" "application/json"}
      :body    (json/generate-string recommendations)})
