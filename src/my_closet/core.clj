@@ -78,16 +78,49 @@
          (map #(all-combinations % list)
               (range min-size (inc max-size)))))
 
+;filters
+(def filters (atom {}))
+
+(defn style-filter-passes? [item filters]
+  (let [desired-styles (->> [:casual :work :formal :party]
+                            (filter #(get filters %))
+                            (map name)
+                            set)]
+    (or (empty? desired-styles) ; ako nista nije selektovano, dozvoli sve
+        (some #(desired-styles %) (clojure.string/split (:style item) #",")))))
+
+(defn season-filter-passes? [item filters]
+  (let [summer? (:summer filters)
+        winter? (:winter filters)
+        season (:season item)]
+    (cond
+      (and summer? (not winter?)) (or (= season "summer") (= season "universal"))
+      (and winter? (not summer?)) (or (= season "winter") (= season "universal"))
+      :else true)))
+
+(defn passes-filters? [item filters]
+  (and (style-filter-passes? item filters)
+       (season-filter-passes? item filters)))
+
+
 ;filters pieces of clothing based on a season, takes all combinations with 2-4 elements from filtered list
 ;and checks if every combined pair in that combination is combined properly
 ;it returns every valid combination
+;(defn recommendation [pieces-of-clothing season]
+;  (let [filtered (filter #(or (= (:season %) season)
+;                              (= (:season %) :universal))
+;                         pieces-of-clothing)]
+;    ;(println "Filtered pieces:" filtered)
+;    (vec (filter combination-of-more-pieces-valid?
+;                 (all-combinations-in-range 2 4 filtered)))))
 (defn recommendation [pieces-of-clothing season]
-  (let [filtered (filter #(or (= (:season %) season)
-                              (= (:season %) :universal))
+  ;sezona mi vise ne treba ali zbog testova ostavljam dok ne prepravim
+  (let [filtered (filter #(and
+                            (passes-filters? % @filters))
                          pieces-of-clothing)]
-    ;(println "Filtered pieces:" filtered)
     (vec (filter combination-of-more-pieces-valid?
                  (all-combinations-in-range 2 4 filtered)))))
+
 
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
 (def user-ratings (get-user-feedback db-spec))
@@ -129,19 +162,6 @@
 ; recommend him a combination based on application logic in recommendation function;
 ; if user has rated combinations - find 'similar' combinations from other users that
 ; liked combinations that our user liked - so we can assume they have similar taste
-;(defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
-;  (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
-;    (if (empty? user-rated)
-;      (recommendation pieces-of-clothing season)
-;      (let [co-occurrences (co-occurrence user-id user-ratings)]
-;        (let [recommendations (->> co-occurrences
-;                                   (sort-by val >)
-;                                   (map key)
-;                                   vec)]
-;
-;          (if (empty? recommendations)
-;            (recommendation pieces-of-clothing season)
-;            recommendations))))))
 (defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
   (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
     (if (empty? user-rated)
@@ -163,22 +183,6 @@
 ;if combination is a seq, it is generic recommendation and we will return random combination from combinations
 ;if combination is a number, it is recommended through co-occurence and we will return first one,
 ;because they are sorted by weights and the first one is the most accurate
-;(defn recommend [user-id user-ratings season pieces-of-clothing]
-;  (let [combinations
-;        (recommend-combinations user-id user-ratings season pieces-of-clothing)]
-;    (println combinations)
-;    (cond
-;      (and (sequential? combinations)
-;           (sequential? (first combinations)))
-;      (do
-;        (rand-nth combinations))
-;      (and (sequential? combinations)
-;           (number? (first combinations)))
-;      (do
-;        (get-combination (first combinations)))
-;      :else
-;      (do
-;        (str "Unexpected format for recommendations")))))
 (defn recommend [user-id user-ratings season pieces-of-clothing]
   (let [combinations
         (recommend-combinations user-id user-ratings season pieces-of-clothing)]
@@ -199,9 +203,6 @@
         (println "Unexpected format for recommendations:" combinations)
         []))))
 
-
-
-
 ;(recommend 2 user-ratings :summer pieces-of-clothing)
 
 (defn home-response [_]
@@ -209,9 +210,8 @@
    :headers {"Content-Type" "application/json"}
    :body    "Welcome to My Closet!"})
 
-(def filters (atom {}))
-
 (defn set-filters [{new-filters :body-params}]
+  (println "Primljeni filteri:" new-filters)
   (reset! filters new-filters)
   {:status  200
    :headers {"Content-Type" "application/json"}
