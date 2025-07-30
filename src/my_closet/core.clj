@@ -184,19 +184,19 @@
         (recommend-combinations user-id user-ratings season pieces-of-clothing)]
     (println "Final recommendations:" combinations)
     (cond
-      ;; generičke kombinacije
+      ; genericke kombinacije
       (and (sequential? combinations)
            (sequential? (first combinations)))
       combinations ; << umesto rand-nth
 
-      ;; co-occurrence kombinacije (lista ID-jeva)
+      ; co-occurrence kombinacije (lista ID-jeva)
       (and (sequential? combinations)
            (number? (first combinations)))
       (mapv get-combination combinations)
 
       :else
       (do
-        (println "❌ Unexpected format for recommendations:" combinations)
+        (println "Unexpected format for recommendations:" combinations)
         []))))
 
 
@@ -242,11 +242,18 @@
         user-id (:user-id feedback)
         combination (:combination feedback)
         opinion (:opinion feedback)]
-    (println "Primljen feedback:" feedback)
-    (insert-combination-and-feedback combination user-id opinion)
-    {:status 200
-     :headers {"Content-Type" "application/json"}
-     :body (json/generate-string {:msg "primljeno"})}))
+    (try
+      (insert-combination-and-feedback combination user-id opinion)
+      {:status 200
+       :headers {"Content-Type" "application/json"}
+       :body (json/generate-string {:msg "Feedback saved successfully."
+                                    :opinion opinion})}
+      (catch Exception e
+        (println "Error during insert-feedback:" (.getMessage e))
+        {:status 409
+         :headers {"Content-Type" "application/json"}
+         :body (json/generate-string {:msg "Failed to save feedback. Possibly already exists."})}))))
+
 
 (def app
   (-> (ring/ring-handler

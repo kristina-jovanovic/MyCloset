@@ -30,9 +30,9 @@
 (defn format-combination [data]
   (map (fn [item]
          (set/rename-keys item {:combinations/combination_id :combination-id
-                                :combinations/name :name
-                                :combinations/pieces :pieces
-                                :combinations/style :style}))
+                                :combinations/name           :name
+                                :combinations/pieces         :pieces
+                                :combinations/style          :style}))
        data))
 
 
@@ -69,66 +69,60 @@
 (defn insert-combination-and-feedback [combination user-id opinion]
   (println "📥 [insert-combination-and-feedback] RAW combination data:" combination)
   (jdbc/with-transaction [tx db-spec]
-                         (if (:combination-id combination)
-                           ; postojeca kombinacija – samo dodajem feedback
-                           (do
-                             (println "combination ima :combination-id => vec postoji u bazi, preskacem insert u combinations")
-                             (insert-feedback user-id (:combination-id combination) opinion)
-                             (println "feedback dodat za postojecu kombinaciju sa ID:" (:combination-id combination)))
+                         (do
+                           (try
+                             (if (:combination-id combination)
+                               (do
+                                 (println "combination ima :combination-id => vec postoji u bazi, preskacem insert u combinations")
+                                 (insert-feedback user-id (:combination-id combination) opinion)
+                                 (println "feedback dodat za postojecu kombinaciju sa ID:" (:combination-id combination)))
 
-                           ; nova kombinacija – insert u combinations + feedback
-                           (let [items (cond
-                                         ; ako je lista sa :piece-id
-                                         (and (sequential? combination)
-                                              (map? (first combination))
-                                              (:piece-id (first combination)))
-                                         (do (println "combination je lista sa piece-id")
-                                             combination)
+                               (let [items (cond
+                                             (and (sequential? combination)
+                                                  (map? (first combination))
+                                                  (:piece-id (first combination)))
+                                             (do (println "combination je lista sa piece-id") combination)
 
-                                         ; ako je mapa sa :pieces stringom
-                                         (and (map? combination) (:pieces combination))
-                                         (let [piece-ids (map #(Integer/parseInt (clojure.string/trim %))
-                                                              (clojure.string/split (:pieces combination) #","))]
-                                           (println "combination je mapa sa :pieces stringom -> piece-ids:" piece-ids)
-                                           (let [resolved (format-clothing-items
-                                                            (jdbc/execute! tx
-                                                                           (into [(str "SELECT * FROM `pieces_of_clothing` WHERE piece_id IN ("
-                                                                                       (clojure.string/join "," (repeat (count piece-ids) "?")) ")")]
-                                                                                 piece-ids)))]
-                                             (println "ucitani podaci iz baze za piece-ids:" resolved)
-                                             resolved))
+                                             (and (map? combination) (:pieces combination))
+                                             (let [piece-ids (map #(Integer/parseInt (clojure.string/trim %))
+                                                                  (clojure.string/split (:pieces combination) #","))]
+                                               (println "combination je mapa sa :pieces stringom -> piece-ids:" piece-ids)
+                                               (let [resolved (format-clothing-items
+                                                                (jdbc/execute! tx
+                                                                               (into [(str "SELECT * FROM `pieces_of_clothing` WHERE piece_id IN ("
+                                                                                           (clojure.string/join "," (repeat (count piece-ids) "?")) ")")]
+                                                                                     piece-ids)))]
+                                                 (println "ucitani podaci iz baze za piece-ids:" resolved)
+                                                 resolved))
 
-                                         :else
-                                         (do
-                                           (println "combination je u neocekivanom formatu:" (type combination))
-                                           (throw (ex-info "Unsupported combination format"
-                                                           {:combination combination}))))
+                                             :else
+                                             (do
+                                               (println "combination je u neocekivanom formatu:" (type combination))
+                                               (throw (ex-info "Unsupported combination format"
+                                                               {:combination combination}))))
 
-                                 description (str/join ", " (map :name items))
-                                 pieces (str/join "," (map :piece-id items))
-                                 style (determine-combination-style items)]
+                                     description (str/join ", " (map :name items))
+                                     pieces (str/join "," (map :piece-id items))
+                                     style (determine-combination-style items)]
 
-                             (println "spremam insert nove kombinacije:")
-                             (println "    description:" description)
-                             (println "    pieces:" pieces)
-                             (println "    style:" style)
+                                 (println "spremam insert nove kombinacije:")
+                                 (println "    description:" description)
+                                 (println "    pieces:" pieces)
+                                 (println "    style:" style)
 
-                             ; INSERT kombinacije
-                             (jdbc/execute! tx
-                                            ["INSERT INTO combinations (name, pieces, style) VALUES (?, ?, ?)"
-                                             description pieces style])
+                                 (jdbc/execute! tx
+                                                ["INSERT INTO combinations (name, pieces, style) VALUES (?, ?, ?)"
+                                                 description pieces style])
 
-                             ; SELECT LAST_INSERT_ID
-                             (let [inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
-                                                   :last_id)]
-                               (println "INSERT kombinacije ok, id:" inserted-id)
+                                 (let [inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
+                                                       :last_id)]
+                                   (println "INSERT kombinacije ok, id:" inserted-id)
+                                   (insert-feedback user-id inserted-id opinion)
+                                   (println "feedback sacuvan za novu kombinaciju"))))
 
-                               ; INSERT feedback
-                               ;(jdbc/execute! tx
-                               ;               ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
-                               ;                user-id inserted-id opinion])
-                               (insert-feedback user-id inserted-id opinion)
-                               (println "feedback sacuvan za novu kombinaciju"))))))
+                               (catch Exception e
+                                 (println "Unexpected error while inserting combination:" (.getMessage e))
+                                 (throw e))))))
 
 
 (defn format-user-feedback [data]
@@ -154,9 +148,9 @@
 
 (defn get-combination [combination-id]
   (format-combination (jdbc/execute! db-spec
-                                        ["SELECT * FROM `combinations`
+                                     ["SELECT * FROM `combinations`
                                         WHERE combination_id=?"
-                                         combination-id])))
+                                      combination-id])))
 
 (defn get-combination-items [combination-id]
   (let [result (jdbc/execute! db-spec
@@ -166,8 +160,8 @@
       []
       (let [piece-ids (map #(Integer/parseInt (str %)) (clojure.string/split pieces-str #","))
             items (format-clothing-items (jdbc/execute! db-spec
-                                  (into [(str "SELECT * FROM `pieces_of_clothing` WHERE piece_id IN ("
-                                              (clojure.string/join "," (repeat (count piece-ids) "?")) ")")]
-                                        piece-ids)))]
+                                                        (into [(str "SELECT * FROM `pieces_of_clothing` WHERE piece_id IN ("
+                                                                    (clojure.string/join "," (repeat (count piece-ids) "?")) ")")]
+                                                              piece-ids)))]
         (seq items)))))
 
