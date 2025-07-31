@@ -120,9 +120,9 @@
                                    (insert-feedback user-id inserted-id opinion)
                                    (println "feedback sacuvan za novu kombinaciju"))))
 
-                               (catch Exception e
-                                 (println "Unexpected error while inserting combination:" (.getMessage e))
-                                 (throw e))))))
+                             (catch Exception e
+                               (println "Unexpected error while inserting combination:" (.getMessage e))
+                               (throw e))))))
 
 
 (defn format-user-feedback [data]
@@ -151,6 +151,19 @@
                                      ["SELECT * FROM `combinations`
                                         WHERE combination_id=?"
                                       combination-id])))
+
+;(defn get-combination [combination-id]
+;  (let [result (jdbc/execute! db-spec
+;                              ["SELECT * FROM `combinations` WHERE combination_id=?" combination-id])
+;        raw (first result)]
+;    (when raw
+;      (set/rename-keys raw {:combinations/combination_id :combination-id
+;                            :combinations/name           :name
+;                            :combinations/pieces         :pieces
+;                            :combinations/style          :style
+;                            ;:combinations/season         :season
+;                            }))))
+
 
 (defn get-combination-items [combination-id]
   (let [result (jdbc/execute! db-spec

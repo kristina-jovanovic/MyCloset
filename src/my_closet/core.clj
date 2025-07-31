@@ -85,42 +85,90 @@
   (let [desired-styles (->> [:casual :work :formal :party]
                             (filter #(get filters %))
                             (map name)
-                            set)]
-    (or (empty? desired-styles) ; ako nista nije selektovano, dozvoli sve
-        (some #(desired-styles %) (clojure.string/split (:style item) #",")))))
+                            (set))
+        item-styles (->> (clojure.string/split (:style item) #",")
+                         (map clojure.string/trim)
+                         set)]
+    (or (empty? desired-styles)
+        (not (empty? (set/intersection desired-styles item-styles))))))
+
+
+(defn combination-style-valid? [combination filters]
+  (let [desired-styles (->> [:casual :work :formal :party]
+                            (filter #(get filters %))
+                            (map name)
+                            set)
+        combination-styles (->> combination
+                                (mapcat #(clojure.string/split (:style %) #","))
+                                set)]
+    (or (empty? desired-styles)
+        (every? #(or (contains? combination-styles %)
+                     (contains? combination-styles "universal"))
+                desired-styles))))
+
 
 (defn season-filter-passes? [item filters]
-  (let [summer? (:summer filters)
-        winter? (:winter filters)
-        season (:season item)]
+  (let [season (:season item)]
     (cond
-      (and summer? (not winter?)) (or (= season "summer") (= season "universal"))
-      (and winter? (not summer?)) (or (= season "winter") (= season "universal"))
+      (:summer filters) (or (= season :summer) (= season :universal))
+      (:winter filters) (or (= season :winter) (= season :universal))
       :else true)))
 
 (defn passes-filters? [item filters]
-  (and (style-filter-passes? item filters)
-       (season-filter-passes? item filters)))
+  (let [passes-style? (style-filter-passes? item filters)
+        passes-season? (season-filter-passes? item filters)]
+    (when (or (not passes-style?) (not passes-season?))
+      ;(println "Item NE prolazi filtere:" (:name item))
+      ;(println "   Style:" (:style item) "| Season:" (:season item))
+      ;(println "   Style OK?:" passes-style? " | Season OK?:" passes-season?)
+      )
+    (and passes-style? passes-season?)))
+
+; when we check combination that already exists in database, when we are using co-occurence matrix
+(defn combination-passes-filters? [combo filters]
+  (let [selected-style (some (fn [[k v]] (when (and v (#{:casual :work :formal :party} k)) k)) filters)
+        selected-season (cond
+                          (:summer filters) "summer"
+                          (:winter filters) "winter"
+                          :else nil)
+        combo-style-str (str (:style combo))
+        combo-styles (set (clojure.string/split combo-style-str #","))
+        combo-season (str (:season combo))]
+
+    (println "\n--- PROVERAVAM KOMBINACIJU ---")
+    (println "Kombinacija ID:" (:id combo))
+    (println "STYLE u kombinaciji:" combo-style-str)
+    (println "SEASON u kombinaciji:" combo-season)
+    (println "Trazeni stil:" (name selected-style))
+    (println "Trazena sezona:" selected-season)
+
+    (let [style-ok? (or (nil? selected-style)
+                        (contains? combo-styles (name selected-style))
+                        (contains? combo-styles "universal"))
+          season-ok? (or (nil? selected-season)
+                         (= combo-season "universal")
+                         (= combo-season selected-season))]
+
+      (println "Stil OK?" style-ok?)
+      (println "Sezona OK?" season-ok?)
+
+      (and style-ok? season-ok?))))
 
 
 ;filters pieces of clothing based on a season, takes all combinations with 2-4 elements from filtered list
 ;and checks if every combined pair in that combination is combined properly
 ;it returns every valid combination
-;(defn recommendation [pieces-of-clothing season]
-;  (let [filtered (filter #(or (= (:season %) season)
-;                              (= (:season %) :universal))
-;                         pieces-of-clothing)]
-;    ;(println "Filtered pieces:" filtered)
-;    (vec (filter combination-of-more-pieces-valid?
-;                 (all-combinations-in-range 2 4 filtered)))))
 (defn recommendation [pieces-of-clothing season]
-  ;sezona mi vise ne treba ali zbog testova ostavljam dok ne prepravim
-  (let [filtered (filter #(and
-                            (passes-filters? % @filters))
-                         pieces-of-clothing)]
-    (vec (filter combination-of-more-pieces-valid?
-                 (all-combinations-in-range 2 4 filtered)))))
-
+  (println "Svi komadi odece:" (map :name pieces-of-clothing))
+  (let [filtered (filter #(passes-filters? % @filters) pieces-of-clothing)]
+    (println "Broj komada nakon passes-filters?:" (count filtered))
+    (let [all-combos (all-combinations-in-range 2 4 filtered)]
+      (println "Generisanih kombinacija:" (count all-combos))
+      (let [valid-combos (filter combination-of-more-pieces-valid? all-combos)]
+        (println "Validne kombinacije po tipu/boji/sezoni:" (count valid-combos))
+        (let [style-combos (filter #(combination-style-valid? % @filters) valid-combos)]
+          (println "Kombinacije koje zadovoljavaju style filter:" (count style-combos))
+          (vec style-combos))))))
 
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
 (def user-ratings (get-user-feedback db-spec))
@@ -143,6 +191,8 @@
                                           (= (:opinion %) :like))
                                     user-ratings)           ; filter liked ratings for our user
         target-combinations (set (map :combination-id target-user-ratings))] ; combinations that targer user liked
+    ;(println "lajkovane kombinacije korisnika" user-id ":" target-combinations)
+
     (vec
       (->> grouped-ratings
            (reduce (fn [recommendations [other-user other-ratings]]
@@ -165,35 +215,40 @@
 (defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
   (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
     (if (empty? user-rated)
-      ; ako korisnik nema ocene, koristi aplikacionu logiku
-      (recommendation pieces-of-clothing season)
-      ; inace koristi co-occurrence
-      (let [co-occurrences (co-occurrence user-id user-ratings)
-            sorted-ids (->> co-occurrences
-                            (sort-by val >)
-                            (map key)
-                            vec)]
-        (println "CO-OCCURRENCE RECOMMENDATION IDS:" sorted-ids)
-        (if (empty? sorted-ids)
-          (recommendation pieces-of-clothing season)
-          ;  konvertuj ID-jeve u prave kombinacije
-          (mapv get-combination sorted-ids))))))
+      (do
+        (println "korisnik nema ocena — koristim aplikacionu logiku.")
+        (recommendation pieces-of-clothing season))
+      (let [co-occurrences (co-occurrence user-id user-ratings)]
+        (println "CO-OCCURRENCE MAPA (RAW):" co-occurrences)
 
+        (if (empty? co-occurrences)
+          (recommendation pieces-of-clothing season)
+          (let [sorted-ids (->> co-occurrences
+                                (sort-by val >)
+                                (map key)
+                                vec)
+                filtered-ids (->> sorted-ids
+                                  (filter (fn [id]
+                                            (when-let [combo (get-combination id)]
+                                              (combination-passes-filters? combo @filters))))
+                                  vec)]
+            filtered-ids))))))
 
 ;if combination is a seq, it is generic recommendation and we will return random combination from combinations
 ;if combination is a number, it is recommended through co-occurence and we will return first one,
 ;because they are sorted by weights and the first one is the most accurate
+
 (defn recommend [user-id user-ratings season pieces-of-clothing]
-  (let [combinations
-        (recommend-combinations user-id user-ratings season pieces-of-clothing)]
+  (let [combinations (recommend-combinations user-id user-ratings season pieces-of-clothing)]
     (println "Final recommendations:" combinations)
     (cond
-      ; genericke kombinacije
+      ;(empty? combinations)
+      ;[] ; nema preporuka, ali to je validno
+
       (and (sequential? combinations)
            (sequential? (first combinations)))
-      combinations ; << umesto rand-nth
+      combinations                                          ; generička preporuka
 
-      ; co-occurrence kombinacije (lista ID-jeva)
       (and (sequential? combinations)
            (number? (first combinations)))
       (mapv get-combination combinations)
@@ -222,8 +277,7 @@
   (let [recommendations (recommend 2 user-ratings :summer pieces-of-clothing)]
     {:status  200
      :headers {"Content-Type" "application/json"}
-     :body    (json/generate-string recommendations)})
-  )
+     :body    (json/generate-string recommendations)}))
 
 (defn get-one-recommendation-response [req]
   (let [id (:body-params req)
@@ -244,15 +298,15 @@
         opinion (:opinion feedback)]
     (try
       (insert-combination-and-feedback combination user-id opinion)
-      {:status 200
+      {:status  200
        :headers {"Content-Type" "application/json"}
-       :body (json/generate-string {:msg "Feedback saved successfully."
-                                    :opinion opinion})}
+       :body    (json/generate-string {:msg     "Feedback saved successfully."
+                                       :opinion opinion})}
       (catch Exception e
         (println "Error during insert-feedback:" (.getMessage e))
-        {:status 409
+        {:status  409
          :headers {"Content-Type" "application/json"}
-         :body (json/generate-string {:msg "Failed to save feedback. Possibly already exists."})}))))
+         :body    (json/generate-string {:msg "Failed to save feedback. Possibly already exists."})}))))
 
 
 (def app
@@ -263,7 +317,7 @@
                                    :post set-filters}]
            ["get-combination" get-one-recommendation-response]
            ["my-clothes" my-clothes-response]
-           ["insert-feedback" {:post insert-feedback-response
+           ["insert-feedback" {:post    insert-feedback-response
                                :options (fn [_] {:status 200})}]
            ["" home-response]]
           {:data {:muuntaja   m/instance
