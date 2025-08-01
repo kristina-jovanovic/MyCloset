@@ -117,7 +117,10 @@
                                  (let [inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
                                                        :last_id)]
                                    (println "INSERT kombinacije ok, id:" inserted-id)
-                                   (insert-feedback user-id inserted-id opinion)
+                                   ;(insert-feedback user-id inserted-id opinion) ; ne moze ovako zbog transakcije
+                                   (jdbc/execute! tx
+                                                  ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                                                   user-id inserted-id opinion])
                                    (println "feedback sacuvan za novu kombinaciju"))))
 
                              (catch Exception e
