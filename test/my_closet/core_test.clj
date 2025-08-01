@@ -16,7 +16,7 @@
       (seasons-match? {:season :winter} {:season :universal}) => true)
 
 (fact "Generate recommendation"
-      (recommendation pieces-of-clothing :summer) =not=> nil)
+      (recommendation 1 pieces-of-clothing :summer) =not=> nil)
 
 (fact "Check if the combination is valid based on color, season and types"
       (combination-valid? {:name "White T-shirt" :type :top :color :white :season :summer} {:name "Black pants" :type :bottom :color :black :season :universal}) => true
@@ -45,7 +45,7 @@
       (get-clothing-items db-spec) =not=> nil)
 
 (fact "Insert combination, combination_items and user_feedback to database"
-      (let [summer-combinations (recommendation pieces-of-clothing :summer)]
+      (let [summer-combinations (recommendation 1 pieces-of-clothing :summer)]
         (insert-combination-and-feedback (first summer-combinations) 1 "like") =not=> nil))
 
 (fact "Get user feedback from database"

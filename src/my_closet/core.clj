@@ -14,7 +14,8 @@
             [cheshire.core :as json]
             [clojure.java.io :as io]
             [ring.middleware.params :refer [wrap-params]]
-            [ring.middleware.json :refer [wrap-json-body wrap-json-response]])
+            [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
+            [clojure.string :as str])
   (:gen-class))
 
 ;defining color rules - every color has a set of colors that matches
@@ -158,17 +159,24 @@
 ;filters pieces of clothing based on a season, takes all combinations with 2-4 elements from filtered list
 ;and checks if every combined pair in that combination is combined properly
 ;it returns every valid combination
-(defn recommendation [pieces-of-clothing season]
+(defn recommendation [user-id pieces-of-clothing season]
   (println "Svi komadi odece:" (map :name pieces-of-clothing))
   (let [filtered (filter #(passes-filters? % @filters) pieces-of-clothing)]
-    (println "Broj komada nakon passes-filters?:" (count filtered))
+    (println "broj komada nakon passes-filters?:" (count filtered))
     (let [all-combos (all-combinations-in-range 2 4 filtered)]
-      (println "Generisanih kombinacija:" (count all-combos))
+      (println "generisanih kombinacija:" (count all-combos))
       (let [valid-combos (filter combination-of-more-pieces-valid? all-combos)]
-        (println "Validne kombinacije po tipu/boji/sezoni:" (count valid-combos))
-        (let [style-combos (filter #(combination-style-valid? % @filters) valid-combos)]
-          (println "Kombinacije koje zadovoljavaju style filter:" (count style-combos))
-          (vec style-combos))))))
+        (println "validne kombinacije po tipu/boji/sezoni:" (count valid-combos))
+        (let [style-combos (filter #(combination-style-valid? % @filters) valid-combos)
+              seen-combos (get-one-user-rated-combos user-id)
+              unseen-combos (remove
+                              (fn [combo]
+                                (let [combo-str (str/join "," (sort (map :piece-id combo)))]
+                                  (println "proveravam da li je combo vec vidjen:" combo-str)
+                                  (contains? seen-combos combo-str)))
+                              style-combos)]
+          (println "kombinacije koje korisnik NIJE video ranije:" (count unseen-combos))
+          (vec unseen-combos))))))
 
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
 (def user-ratings (get-user-feedback db-spec))
@@ -217,12 +225,12 @@
     (if (empty? user-rated)
       (do
         (println "korisnik nema ocena — koristim aplikacionu logiku.")
-        (recommendation pieces-of-clothing season))
+        (recommendation user-id pieces-of-clothing season))
       (let [co-occurrences (co-occurrence user-id user-ratings)]
         (println "CO-OCCURRENCE MAPA (RAW):" co-occurrences)
 
         (if (empty? co-occurrences)
-          (recommendation pieces-of-clothing season)
+          (recommendation user-id pieces-of-clothing season)
           (let [sorted-ids (->> co-occurrences
                                 (sort-by val >)
                                 (map key)
@@ -247,7 +255,7 @@
 
       (and (sequential? combinations)
            (sequential? (first combinations)))
-      combinations                                          ; generička preporuka
+      combinations        ; generička preporuka
 
       (and (sequential? combinations)
            (number? (first combinations)))

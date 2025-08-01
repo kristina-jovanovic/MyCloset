@@ -143,6 +143,25 @@
   (format-user-feedback (jdbc/execute! db-spec
                                        ["SELECT * FROM `feedback`"])))
 
+(defn get-one-user-rated-combos [user-id]
+  (let [results (jdbc/execute! db-spec
+                               ["SELECT pieces FROM combinations WHERE combination_id IN
+                                (SELECT combination_id FROM feedback WHERE user_id = ?)"
+                                user-id])]
+    (println "rezultati iz baze:" results)
+    (set
+      (keep (fn [row]
+              (let [pieces-str (or (:pieces row) (:combinations/pieces row))]
+                (if (some? pieces-str)
+                  (->> (str/split pieces-str #",")
+                       (map parse-long)
+                       sort                                 ;sortiram da bi mi uvek bio isti redosled kad proveravam
+                       (str/join ","))
+                  (do
+                    (println "upozorenje: nije pronađen :pieces u redu:" row)
+                    nil))))
+            results))))
+
 
 (defn update-feedback [user-id combination-id rating]
   (jdbc/execute! db-spec
@@ -154,19 +173,6 @@
                                      ["SELECT * FROM `combinations`
                                         WHERE combination_id=?"
                                       combination-id])))
-
-;(defn get-combination [combination-id]
-;  (let [result (jdbc/execute! db-spec
-;                              ["SELECT * FROM `combinations` WHERE combination_id=?" combination-id])
-;        raw (first result)]
-;    (when raw
-;      (set/rename-keys raw {:combinations/combination_id :combination-id
-;                            :combinations/name           :name
-;                            :combinations/pieces         :pieces
-;                            :combinations/style          :style
-;                            ;:combinations/season         :season
-;                            }))))
-
 
 (defn get-combination-items [combination-id]
   (let [result (jdbc/execute! db-spec
