@@ -15,7 +15,8 @@
             [clojure.java.io :as io]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [reitit.ring.middleware.parameters :refer [parameters-middleware]])
   (:gen-class))
 
 ;defining color rules - every color has a set of colors that matches
@@ -160,22 +161,22 @@
 ;and checks if every combined pair in that combination is combined properly
 ;it returns every valid combination
 (defn recommendation [user-id pieces-of-clothing season]
-  (println "Svi komadi odece:" (map :name pieces-of-clothing))
+  ;(println "Svi komadi odece:" (map :name pieces-of-clothing))
   (let [filtered (filter #(passes-filters? % @filters) pieces-of-clothing)]
-    (println "broj komada nakon passes-filters?:" (count filtered))
+    ;(println "broj komada nakon passes-filters?:" (count filtered))
     (let [all-combos (all-combinations-in-range 2 4 filtered)]
-      (println "generisanih kombinacija:" (count all-combos))
+      ;(println "generisanih kombinacija:" (count all-combos))
       (let [valid-combos (filter combination-of-more-pieces-valid? all-combos)]
-        (println "validne kombinacije po tipu/boji/sezoni:" (count valid-combos))
+        ;(println "validne kombinacije po tipu/boji/sezoni:" (count valid-combos))
         (let [style-combos (filter #(combination-style-valid? % @filters) valid-combos)
               seen-combos (get-one-user-rated-combos user-id)
               unseen-combos (remove
                               (fn [combo]
                                 (let [combo-str (str/join "," (sort (map :piece-id combo)))]
-                                  (println "proveravam da li je combo vec vidjen:" combo-str)
+                                  ;(println "proveravam da li je combo vec vidjen:" combo-str)
                                   (contains? seen-combos combo-str)))
                               style-combos)]
-          (println "kombinacije koje korisnik NIJE video ranije:" (count unseen-combos))
+          ;(println "kombinacije koje korisnik NIJE video ranije:" (count unseen-combos))
           (vec unseen-combos))))))
 
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
@@ -248,14 +249,14 @@
 
 (defn recommend [user-id user-ratings season pieces-of-clothing]
   (let [combinations (recommend-combinations user-id user-ratings season pieces-of-clothing)]
-    (println "Final recommendations:" combinations)
+    ;(println "Final recommendations:" combinations)
     (cond
       ;(empty? combinations)
       ;[] ; nema preporuka, ali to je validno
 
       (and (sequential? combinations)
            (sequential? (first combinations)))
-      combinations        ; generička preporuka
+      combinations                                          ; generička preporuka
 
       (and (sequential? combinations)
            (number? (first combinations)))
@@ -265,8 +266,6 @@
       (do
         (println "Unexpected format for recommendations:" combinations)
         []))))
-
-;(recommend 2 user-ratings :summer pieces-of-clothing)
 
 (defn home-response [_]
   {:status  200
@@ -282,17 +281,28 @@
 ;{:casual true, :work false, :formal false, :party false, :summer true, :winter false}
 
 (defn get-recommendations-response [_]
+  ;ovde treba da se prima bas user-id!!
   (let [recommendations (recommend 2 user-ratings :summer pieces-of-clothing)]
     {:status  200
      :headers {"Content-Type" "application/json"}
      :body    (json/generate-string recommendations)}))
 
 (defn get-one-recommendation-response [req]
-  (let [id (:body-params req)
+  (let [id (:query-params req)                              ;izmenjeno!
         combination (get-combination id)]
     {:status  200
      :headers {"Content-Type" "application/json"}
      :body    (json/generate-string combination)}))
+
+(defn get-liked-combinations-response [req]
+  ;(println "REQ CONTENT:" req)
+  (let [user-id (some-> (get-in req [:query-params "user-id"])
+                        parse-long)                         ;; jer dolazi kao string
+        combinations (get-liked-combinations user-id)]
+    {:status  200
+     :headers {"Content-Type" "application/json"}
+     :body    (json/generate-string combinations)}))
+
 
 (defn my-clothes-response [_]
   {:status  200
@@ -316,6 +326,23 @@
          :headers {"Content-Type" "application/json"}
          :body    (json/generate-string {:msg "Failed to save feedback. Possibly already exists."})}))))
 
+(defn update-rating-response [req]
+  (let [feedback (:body-params req)
+        user-id (:user-id feedback)
+        combination-id (:combination-id feedback)
+        rating (:rating feedback)]
+    (try
+      (println "Primljen update-rating:" user-id combination-id rating)
+      (update-feedback user-id combination-id rating)
+      {:status  200
+       :headers {"Content-Type" "application/json"}
+       :body    (json/generate-string {:msg    "Feedback (rating) updated successfully."
+                                       :rating rating})}
+      (catch Exception e
+        (println "Error during insert-feedback:" (.getMessage e))
+        {:status  409
+         :headers {"Content-Type" "application/json"}
+         :body    (json/generate-string {:msg "Failed to update feedback (rating)."})}))))
 
 (def app
   (-> (ring/ring-handler
@@ -327,12 +354,15 @@
            ["my-clothes" my-clothes-response]
            ["insert-feedback" {:post    insert-feedback-response
                                :options (fn [_] {:status 200})}]
+           ["liked-combinations" get-liked-combinations-response]
+           ["update-rating" {:put update-rating-response}]
            ["" home-response]]
           {:data {:muuntaja   m/instance
-                  :middleware [muuntaja/format-middleware]}}))
+                  :middleware [parameters-middleware
+                               muuntaja/format-middleware]}}))
       (wrap-cors
         :access-control-allow-origin [#"http://localhost:8280"]
-        :access-control-allow-methods [:get :post :options]
+        :access-control-allow-methods [:get :post :put :options]
         :access-control-allow-headers ["Content-Type"])
       wrap-json-response))
 

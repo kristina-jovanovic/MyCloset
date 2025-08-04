@@ -162,7 +162,6 @@
                     nil))))
             results))))
 
-
 (defn update-feedback [user-id combination-id rating]
   (jdbc/execute! db-spec
                  ["UPDATE feedback SET rating=? WHERE user_id=? AND combination_id=?"
@@ -186,4 +185,23 @@
                                                                     (clojure.string/join "," (repeat (count piece-ids) "?")) ")")]
                                                               piece-ids)))]
         (seq items)))))
+
+(defn format-liked-combinations [data]
+  (map (fn [item]
+         (let [renamed-item (set/rename-keys item {:combinations/combination_id :combination-id
+                                                   :combinations/name           :name
+                                                   :combinations/pieces         :pieces
+                                                   :combinations/style          :style
+                                                   :feedback/opinion            :opinion
+                                                   :feedback/rating             :rating})]
+           (-> renamed-item
+               (update :opinion keyword))))
+       data))
+
+(defn get-liked-combinations [user-id]
+  (format-liked-combinations (jdbc/execute! db-spec
+                                            ["SELECT c.*, f.opinion, f.rating FROM feedback f JOIN combinations c
+                                              ON f.combination_id=c.combination_id
+                                              WHERE f.opinion=\"like\" AND f.user_id=?"
+                                             user-id])))
 
