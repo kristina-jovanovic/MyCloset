@@ -205,3 +205,10 @@
                                               WHERE f.opinion=\"like\" AND f.user_id=?"
                                              user-id])))
 
+(defn get-favorite-combinations [user-id]
+  (format-combination (jdbc/execute! db-spec
+                                            ["SELECT c.* FROM feedback f JOIN combinations c
+                                              ON f.combination_id=c.combination_id
+                                              WHERE f.rating=5 AND f.user_id=?"
+                                             user-id])))
+

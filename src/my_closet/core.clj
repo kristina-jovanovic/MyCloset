@@ -344,6 +344,15 @@
          :headers {"Content-Type" "application/json"}
          :body    (json/generate-string {:msg "Failed to update feedback (rating)."})}))))
 
+(defn get-favorite-combinations-response [req]
+  ;(println "REQ CONTENT:" req)
+  (let [user-id (some-> (get-in req [:query-params "user-id"])
+                        parse-long)                         ;; jer dolazi kao string
+        combinations (get-favorite-combinations user-id)]
+    {:status  200
+     :headers {"Content-Type" "application/json"}
+     :body    (json/generate-string combinations)}))
+
 (def app
   (-> (ring/ring-handler
         (ring/router
@@ -356,6 +365,7 @@
                                :options (fn [_] {:status 200})}]
            ["liked-combinations" get-liked-combinations-response]
            ["update-rating" {:put update-rating-response}]
+           ["favorite-combinations" get-favorite-combinations-response]
            ["" home-response]]
           {:data {:muuntaja   m/instance
                   :middleware [parameters-middleware
