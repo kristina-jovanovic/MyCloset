@@ -280,15 +280,25 @@
    :body    @filters})
 ;{:casual true, :work false, :formal false, :party false, :summer true, :winter false}
 
-(defn get-recommendations-response [_]
-  ;ovde treba da se prima bas user-id!!
-  (let [recommendations (recommend 2 user-ratings :summer pieces-of-clothing)]
+(defn selected-season []
+  (let [{:keys [summer]} @filters]
+    (cond
+      (true? summer) :summer
+      :else :winter)))
+
+(defn get-recommendations-response [req]
+  (let
+    ;[recommendations (recommend 2 user-ratings :summer pieces-of-clothing)]
+    [user-id (some-> (get-in req [:query-params "user-id"])
+                     parse-long)                         ;; jer dolazi kao string
+     season (selected-season)
+     recommendations (recommend user-id user-ratings season pieces-of-clothing)]
     {:status  200
      :headers {"Content-Type" "application/json"}
      :body    (json/generate-string recommendations)}))
 
 (defn get-one-recommendation-response [req]
-  (let [id (:query-params req)                              ;izmenjeno!
+  (let [id (:query-params req)
         combination (get-combination id)]
     {:status  200
      :headers {"Content-Type" "application/json"}
@@ -353,6 +363,12 @@
      :headers {"Content-Type" "application/json"}
      :body    (json/generate-string combinations)}))
 
+(defn get-users-response [_]
+  (let [users (get-users db-spec)]
+    {:status  200
+     :headers {"Content-Type" "application/json"}
+     :body    (json/generate-string users)}))
+
 (def app
   (-> (ring/ring-handler
         (ring/router
@@ -366,6 +382,7 @@
            ["liked-combinations" get-liked-combinations-response]
            ["update-rating" {:put update-rating-response}]
            ["favorite-combinations" get-favorite-combinations-response]
+           ["users" get-users-response]
            ["" home-response]]
           {:data {:muuntaja   m/instance
                   :middleware [parameters-middleware

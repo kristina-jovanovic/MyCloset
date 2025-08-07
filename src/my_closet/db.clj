@@ -207,8 +207,18 @@
 
 (defn get-favorite-combinations [user-id]
   (format-combination (jdbc/execute! db-spec
-                                            ["SELECT c.* FROM feedback f JOIN combinations c
+                                     ["SELECT c.* FROM feedback f JOIN combinations c
                                               ON f.combination_id=c.combination_id
                                               WHERE f.rating=5 AND f.user_id=?"
-                                             user-id])))
+                                      user-id])))
 
+(defn format-users [data]
+  (map (fn [item]
+         (set/rename-keys item {:users/user_id  :user-id
+                                :users/username :username
+                                :users/password :password}))
+       data))
+
+(defn get-users [db-spec]
+  (format-users (jdbc/execute! db-spec
+                               ["SELECT * FROM `users`"])))
