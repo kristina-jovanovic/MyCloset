@@ -173,10 +173,10 @@
               unseen-combos (remove
                               (fn [combo]
                                 (let [combo-str (str/join "," (sort (map :piece-id combo)))]
-                                  ;(println "proveravam da li je combo vec vidjen:" combo-str)
+                                  (println "proveravam da li je combo vec vidjen:" combo-str)
                                   (contains? seen-combos combo-str)))
                               style-combos)]
-          ;(println "kombinacije koje korisnik NIJE video ranije:" (count unseen-combos))
+          (println "kombinacije koje korisnik NIJE video ranije:" (count unseen-combos))
           (vec unseen-combos))))))
 
 ;idea is to save user's ratings by saving combinations and their opinion - like or dislike
@@ -221,6 +221,28 @@
 ; recommend him a combination based on application logic in recommendation function;
 ; if user has rated combinations - find 'similar' combinations from other users that
 ; liked combinations that our user liked - so we can assume they have similar taste
+;(defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
+;  (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
+;    (if (empty? user-rated)
+;      (do
+;        (println "korisnik nema ocena — koristim aplikacionu logiku.")
+;        (recommendation user-id pieces-of-clothing season))
+;      (let [co-occurrences (co-occurrence user-id user-ratings)]
+;        (println "CO-OCCURRENCE MAPA (RAW):" co-occurrences)
+;
+;        (if (empty? co-occurrences)
+;          (recommendation user-id pieces-of-clothing season)
+;          (let [sorted-ids (->> co-occurrences
+;                                (sort-by val >)
+;                                (map key)
+;                                vec)
+;                filtered-ids (->> sorted-ids
+;                                  (filter (fn [id]
+;                                            (when-let [combo (get-combination id)]
+;                                              (combination-passes-filters? combo @filters))))
+;                                  vec)]
+;            filtered-ids))))))
+
 (defn recommend-combinations [user-id user-ratings season pieces-of-clothing]
   (let [user-rated (filter #(= (:user-id %) user-id) user-ratings)]
     (if (empty? user-rated)
@@ -241,7 +263,12 @@
                                             (when-let [combo (get-combination id)]
                                               (combination-passes-filters? combo @filters))))
                                   vec)]
-            filtered-ids))))))
+            (if (empty? filtered-ids)
+              (do
+                (println "Nijedna preporuka iz co-occurrence ne prolazi filtere - koristimo aplikacionu logiku")
+                (recommendation user-id pieces-of-clothing season))
+              filtered-ids)))))))
+
 
 ;if combination is a seq, it is generic recommendation and we will return random combination from combinations
 ;if combination is a number, it is recommended through co-occurence and we will return first one,
@@ -323,9 +350,10 @@
   (let [feedback (:body-params req)
         user-id (:user-id feedback)
         combination (:combination feedback)
+        combination-id (:combination-id feedback)
         opinion (:opinion feedback)]
     (try
-      (insert-combination-and-feedback combination user-id opinion)
+      (insert-combination-and-feedback combination combination-id user-id opinion)
       {:status  200
        :headers {"Content-Type" "application/json"}
        :body    (json/generate-string {:msg     "Feedback saved successfully."

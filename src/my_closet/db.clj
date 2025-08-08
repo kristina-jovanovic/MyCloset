@@ -66,26 +66,36 @@
                  ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
                   user-id combination-id opinion]))
 
-(defn insert-combination-and-feedback [combination user-id opinion]
-  (println "📥 [insert-combination-and-feedback] RAW combination data:" combination)
+(defn insert-combination-and-feedback [combination combination-id user-id opinion]
   (jdbc/with-transaction [tx db-spec]
-                         (do
-                           (try
-                             (if (:combination-id combination)
-                               (do
-                                 (println "combination ima :combination-id => vec postoji u bazi, preskacem insert u combinations")
-                                 (insert-feedback user-id (:combination-id combination) opinion)
-                                 (println "feedback dodat za postojecu kombinaciju sa ID:" (:combination-id combination)))
+                         (try
+                           (let [; sa fronta stize :combination-id ili :combination_id
+                                 combination-id (or combination-id
+                                                    (:combination-id combination)
+                                                    (:combination_id combination))]
 
+                             (if combination-id
+                               ; vec postoji kombinacija
+                               (do
+                                 (println "combination ima ID => preskacem insert, pisem feedback za ID:" combination-id)
+                                 (jdbc/execute! tx
+                                                ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                                                 user-id combination-id opinion])
+                                 (println "feedback dodat za postojecu kombinaciju"))
+
+                               ; treba da formiramo/nadjemo kombinaciju po komadima
                                (let [items (cond
+                                             ; direktno poslata lista komada (mape sa :piece-id)
                                              (and (sequential? combination)
                                                   (map? (first combination))
                                                   (:piece-id (first combination)))
                                              (do (println "combination je lista sa piece-id") combination)
 
+                                             ; mapa sa :pieces stringom "1,2,3" -> ucitaj ih iz baze
                                              (and (map? combination) (:pieces combination))
-                                             (let [piece-ids (map #(Integer/parseInt (clojure.string/trim %))
-                                                                  (clojure.string/split (:pieces combination) #","))]
+                                             (let [piece-ids (->> (clojure.string/split (:pieces combination) #",")
+                                                                  (map clojure.string/trim)
+                                                                  (map #(Integer/parseInt %)))]
                                                (println "combination je mapa sa :pieces stringom -> piece-ids:" piece-ids)
                                                (let [resolved (format-clothing-items
                                                                 (jdbc/execute! tx
@@ -98,34 +108,46 @@
                                              :else
                                              (do
                                                (println "combination je u neocekivanom formatu:" (type combination))
-                                               (throw (ex-info "Unsupported combination format"
-                                                               {:combination combination}))))
+                                               (throw (ex-info "Unsupported combination format" {:combination combination}))))
 
-                                     description (str/join ", " (map :name items))
-                                     pieces (str/join "," (map :piece-id items))
-                                     style (determine-combination-style items)]
+                                     description (clojure.string/join ", " (map :name items))
+                                     pieces      (clojure.string/join "," (map :piece-id items))
+                                     style       (determine-combination-style items)
 
-                                 (println "spremam insert nove kombinacije:")
-                                 (println "    description:" description)
-                                 (println "    pieces:" pieces)
-                                 (println "    style:" style)
+                                     ; pokusaj da nadjes postojecu kombinaciju po 'pieces'
+                                     existing    (jdbc/execute-one! tx
+                                                                    ["SELECT combination_id FROM combinations WHERE pieces = ?" pieces])
+                                     comb-id     (:combinations/combination_id existing)]
 
-                                 (jdbc/execute! tx
-                                                ["INSERT INTO combinations (name, pieces, style) VALUES (?, ?, ?)"
-                                                 description pieces style])
+                                 (if comb-id
+                                   (do
+                                     (println "Postojeca kombinacija pronadjena, ID:" comb-id)
+                                     (jdbc/execute! tx
+                                                    ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                                                     user-id comb-id opinion])
+                                     (println "feedback sacuvan za postojecu kombinaciju"))
 
-                                 (let [inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
-                                                       :last_id)]
-                                   (println "INSERT kombinacije ok, id:" inserted-id)
-                                   ;(insert-feedback user-id inserted-id opinion) ; ne moze ovako zbog transakcije
-                                   (jdbc/execute! tx
-                                                  ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
-                                                   user-id inserted-id opinion])
-                                   (println "feedback sacuvan za novu kombinaciju"))))
+                                   (do
+                                     (println "Spremam insert nove kombinacije:")
+                                     (println "    description:" description)
+                                     (println "    pieces:" pieces)
+                                     (println "    style:" style)
 
-                             (catch Exception e
-                               (println "Unexpected error while inserting combination:" (.getMessage e))
-                               (throw e))))))
+                                     (jdbc/execute! tx
+                                                    ["INSERT INTO combinations (name, pieces, style) VALUES (?, ?, ?)"
+                                                     description pieces style])
+
+                                     (let [inserted-id (-> (jdbc/execute-one! tx ["SELECT LAST_INSERT_ID() AS last_id"])
+                                                           :last_id)]
+                                       (println "INSERT kombinacije OK, id:" inserted-id)
+                                       (jdbc/execute! tx
+                                                      ["INSERT INTO feedback (user_id, combination_id, opinion) VALUES (?, ?, ?)"
+                                                       user-id inserted-id opinion])
+                                       (println "feedback sacuvan za novu kombinaciju")))))))
+
+                           (catch Exception e
+                             (println "Unexpected error while inserting combination:" (.getMessage e))
+                             (throw e)))))
 
 
 (defn format-user-feedback [data]
@@ -160,7 +182,7 @@
                   (do
                     (println "upozorenje: nije pronađen :pieces u redu:" row)
                     nil))))
-            results))))
+            (map #(set/rename-keys % {:combinations/pieces :pieces}) results)))))
 
 (defn update-feedback [user-id combination-id rating]
   (jdbc/execute! db-spec

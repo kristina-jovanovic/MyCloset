@@ -46,7 +46,7 @@
 
 (fact "Insert combination, combination_items and user_feedback to database"
       (let [summer-combinations (recommendation 1 pieces-of-clothing :summer)]
-        (insert-combination-and-feedback (first summer-combinations) 1 "like") =not=> nil))
+        (insert-combination-and-feedback (first summer-combinations) 1 1 "like") =not=> nil))
 
 (fact "Get user feedback from database"
       (get-user-feedback db-spec) =not=> nil)
