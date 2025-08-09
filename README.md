@@ -1,16 +1,19 @@
 # my-closet
 
-Instructions for launching the application:
+## Instructions for launching the application:
 XAMPP – start Apache and MySQL (check port, 3306 is set in the app) – run script if needed.
 Backend – my-closet project – lein run
 Frontend – my-closet-frontend project – npx shadow-cljs watch app
 
+## Motivation
 Idea for this project came out of nowhere, but after all I'm just a girl. I heard there are similar applications that allow you to insert your clothes and then you can make combinations and plan outfits anywhere. I wanted to make next step, so I made application that generates combinations based on your clothing items. 
 
+## About
 There are rules (now basic) that are calculated when generating combinations. I also added an algorithm that learns from users' feedback. If user1 and user2 like the same combination, each of them will receive some combinations that the other one liked. It's like they have similar taste, so combinations from the other users are being recommended. If there are more "compatibile" users, weights are being calculated, in the other words, we are searching for the most similar taste. If user has no compatibility with others, he will receive combinations generated in the app considering application logic. Rules used for that are for now basic, but in the future professional stylist could be consulted.
 
 The app is now designed to be used by one household, but model can change. We don't care how clothes are inserted into database, for all we know, they can be scanned automatically in smart closet. Users are also added in advance, in app you can switch accounts, but there are no classic login. The idea was to make using application super simple, without unnecessary parts.
 
+## Technologies and libraries
 Backend is written in Clojure, frontend in ClojureScript. MySQL is used as Database Management System. 
 Libraries used for this app:
 Core language
