@@ -1,7 +1,7 @@
 # my-closet
 
 Instructions for launching the application:
-XAMPP – start Apache and MySQL (check port, 3306 is set in the app) – run script if needed
+XAMPP – start Apache and MySQL (check port, 3306 is set in the app) – run script if needed.
 Backend – my-closet project – lein run
 Frontend – my-closet-frontend project – npx shadow-cljs watch app
 
