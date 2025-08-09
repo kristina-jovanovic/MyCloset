@@ -16,45 +16,45 @@ The app is now designed to be used by one household, but model can change. We do
 ## Technologies and libraries
 Backend is written in Clojure, frontend in ClojureScript. MySQL is used as Database Management System. 
 Libraries used for this app:
-Core language
+### Core language
 •	org.clojure/clojure – The main Clojure library (version 1.11.1), the language core.
-Testing
+### Testing
 •	midje – A testing framework for Clojure, focused on readable, behavior-driven development (BDD) style tests.
-Database
+### Database
 •	seancorfield/next.jdbc – A modern JDBC wrapper for Clojure, simplifying interaction with relational databases.
 •	mysql/mysql-connector-java – A Java driver for connecting to MySQL/MariaDB databases.
-Web server and HTTP layer
+### Web server and HTTP layer
 •	ring/ring-core – The core library for building web applications in Clojure; defines the HTTP request/response model.
 •	ring/ring-json – Middleware for parsing and generating JSON in Ring applications.
 •	ring/ring-jetty-adapter – An adapter for running Ring applications on the Jetty web server.
 •	ring-cors – Middleware for adding CORS (Cross-Origin Resource Sharing) support.
-Routing and content negotiation
+### Routing and content negotiation
 •	metosin/reitit – A fast and flexible routing framework for Clojure/ClojureScript.
 •	metosin/muuntaja – A library for automatic encoding and decoding of data (JSON, Transit, EDN, etc.).
-JSON processing
+### JSON processing
 •	cheshire – A fast JSON encoding/decoding library for Clojure.
-UI and State Management
+### UI and State Management
 •	reagent – A minimalistic ClojureScript interface to React, allowing you to build reactive UI components.
 •	re-frame – A ClojureScript framework for building SPAs using Reagent, with a functional, event-driven architecture.
-Debugging and Development Tools
+### Debugging and Development Tools
 •	day8.re-frame/tracing – Provides tracing and instrumentation support for debugging re-frame applications.
 •	binaryage/devtools – Enhances ClojureScript’s integration with browser developer tools for easier debugging.
 •	day8.re-frame/re-frame-10x – A powerful time-travel and debugging tool for re-frame applications.
-HTTP and Effects
+### HTTP and Effects
 •	day8.re-frame/http-fx – A re-frame effects handler for making HTTP requests using cljs-ajax.
 •	cljs-http – A simple and asynchronous HTTP client for ClojureScript.
 •	ajax.core – A ClojureScript library for making asynchronous HTTP requests (supports EDN, JSON, Transit, etc.).
 •	ajax.edn – Part of the cljs-ajax suite, providing EDN request/response handling.
-Routing
+### Routing
 •	bidi – A bidirectional routing library for Clojure and ClojureScript, enabling both route matching and URL generation.
 •	clj-commons/pushy – A library for client-side navigation using HTML5 pushState without reloading the page.
-Core Utilities
+### Core Utilities
 •	org.clojure/tools.reader – A library for reading Clojure and ClojureScript code/data, with customizable reader behavior.
 •	cljs.tools.reader – ClojureScript version of the reader, used for parsing EDN and Clojure data structures.
 •	clojure.string – Core library for string manipulation in Clojure/ClojureScript.
-Asynchronous Processing
+### Asynchronous Processing
 •	cljs.core.async – A library for asynchronous programming in ClojureScript using channels and goroutines-like constructs.
-Backend Database
+### Backend Database
 •	MySQL – Relational database management system used as the main data store, accessed through JDBC and next.jdbc in the backend.
 
 
